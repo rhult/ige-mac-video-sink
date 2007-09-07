@@ -23,6 +23,8 @@ AM_PATH_GLIB_2_0
 dnl Defined in acinclude.m4
 IMENDIO_COMPILE_WARNINGS
 
+AG_GST_SET_PLUGINDIR
+
 dnl  ------------------
 dnl | Pkgconfig checks |---------------------------------------
 dnl  ------------------
@@ -49,6 +51,8 @@ AC_SUBST(ACLOCAL_AMFLAGS)
 AC_OUTPUT([
 	Makefile 
 	src/Makefile
+	data/Makefile
+        data/gtk-osx-video-embed.pc
 ])
 
 echo

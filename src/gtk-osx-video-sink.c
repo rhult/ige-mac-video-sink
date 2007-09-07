@@ -33,8 +33,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glext.h>
 
-//#include <unistd.h>
 #include "gtk-osx-video-sink.h"
+#include "gtk-osx-video-embed.h"
 
 /* NOTE: We are declaring this because GTK+ doesn't install the header
  * for now.
@@ -80,6 +80,7 @@ enum
 #define RELEASE_POOL [pool release]
 
 static GstVideoSinkClass *parent_class = NULL;
+
 
 static void
 osx_video_sink_init_texture (GstOSXVideoSink *sink)
@@ -516,6 +517,13 @@ gst_osx_video_sink_init (GstOSXVideoSink *sink)
 }
 
 static void
+gtk_osx_video_sink_set_widget (GtkOSXVideoEmbed *embed, 
+                               GtkWidget        *widget)
+{
+        // ...
+}
+
+static void
 gst_osx_video_sink_base_init (gpointer g_class)
 {
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
@@ -570,39 +578,45 @@ gst_osx_video_sink_class_init (GstOSXVideoSinkClass * klass)
           G_PARAM_READWRITE));
 }
 
+static void
+gtk_osx_video_embed_iface_init (GtkOSXVideoEmbedIface *iface)
+{
+  iface->set_widget = gtk_osx_video_sink_set_widget;
+}
+
 GType
 gst_osx_video_sink_get_type (void)
 {
-  static GType osxvideosink_type = 0;
+        static GType sink_type = 0;
 
-  if (!osxvideosink_type) {
-    static const GTypeInfo osxvideosink_info = {
-      sizeof (GstOSXVideoSinkClass),
-      gst_osx_video_sink_base_init,
-      NULL,
-      (GClassInitFunc) gst_osx_video_sink_class_init,
-      NULL,
-      NULL,
-      sizeof (GstOSXVideoSink),
-      0,
-      (GInstanceInitFunc) gst_osx_video_sink_init,
-    };
+        if (!sink_type) {
+                const GTypeInfo sink_info = {
+                        sizeof (GstOSXVideoSinkClass),
+                        gst_osx_video_sink_base_init,
+                        NULL,
+                        (GClassInitFunc) gst_osx_video_sink_class_init,
+                        NULL,
+                        NULL,
+                        sizeof (GstOSXVideoSink),
+                        0,
+                        (GInstanceInitFunc) gst_osx_video_sink_init,
+                };
+    
+                const GInterfaceInfo embed_info = {
+                        (GInterfaceInitFunc) gtk_osx_video_embed_iface_init,
+                        NULL,
+                        NULL,
+                };
 
-    osxvideosink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
-        "GstOSXVideoSink", &osxvideosink_info, 0);
+                sink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
+                                                    "GstOSXVideoSink", &sink_info, 0);
 
-  }
+                g_type_add_interface_static (sink_type, GTK_TYPE_OSX_VIDEO_EMBED,
+                                             &embed_info);
+        }
 
-  return osxvideosink_type;
+        return sink_type;
 }
-
-void
-gst_osx_video_sink_set_widget (GstOSXVideoSink *sink, 
-                               GtkWidget       *widget)
-{
-        // ...
-}
-
 
 static gboolean
 plugin_init (GstPlugin * plugin)
@@ -622,4 +636,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     "gtkosxvideo",
     "GTK+ OS X native video output plugin",
-    plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+    plugin_init, VERSION, "LGPL", "GTK+ OS X video sink", "Unknown origin")

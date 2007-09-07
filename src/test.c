@@ -1,6 +1,8 @@
 #include <gtk/gtk.h>
 #include <gst/gst.h>
 
+#include "gtk-osx-video-embed.h"
+
 static void
 bus_callback (GstBus *bus, GstMessage *message, gpointer data)
 {
@@ -88,7 +90,7 @@ main (int argc, char **argv)
 
         // FIXME: set background to NULL
 
-        gst_osx_video_sink_set_widget (GST_OSX_VIDEO_SINK (video_sink), area);
+        gtk_osx_video_embed_set_widget (GTK_OSX_VIDEO_EMBED (video_sink), area);
 
         bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
         gst_bus_add_watch (bus, (GstBusFunc) bus_callback, NULL);
