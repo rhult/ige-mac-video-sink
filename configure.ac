@@ -29,9 +29,15 @@ dnl  ------------------
 
 PKG_CHECK_MODULES(SINK, [
         glib-2.0 >= 2.12
-	gtk+-2.0 >= 2.10
+	gtk+-2.0 >= 2.11
         gstreamer-0.10
-        gst-plugins-base-0.10
+        gstreamer-plugins-base-0.10
+])
+
+PKG_CHECK_MODULES(TEST, [
+        glib-2.0 >= 2.12
+	gtk+-2.0 >= 2.11
+        gstreamer-0.10
 ])
 dnl -----------------------------------------------------------
 

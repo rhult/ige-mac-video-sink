@@ -16,7 +16,7 @@ ORIGDIR=`pwd`
 cd $srcdir
 PROJECT=gtk-osx-video-sink
 TEST_TYPE=-f
-FILE=src/gtk-osx-video-sink.c
+FILE=src/test.c
 CONFIGURE=configure.ac
 
 DIE=0

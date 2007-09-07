@@ -13,3 +13,5 @@ Makefile.in
 Makefile
 mkinstalldirs
 .*.sw?
+.deps
+.libs
