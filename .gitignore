@@ -15,3 +15,7 @@ mkinstalldirs
 .*.sw?
 .deps
 .libs
+compile
+*.la
+*.o
+*.lo
