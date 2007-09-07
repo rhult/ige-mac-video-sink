@@ -1,0 +1,15 @@
+aclocal.m4
+autom4te*
+config.*
+configure
+depcomp
+install-sh
+libtool
+ltmain.sh
+missing
+stamp-h1
+*~
+Makefile.in
+Makefile
+mkinstalldirs
+.*.sw?
