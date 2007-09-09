@@ -21,8 +21,8 @@
  * Boston, MA 02111-1307, USA.
  */
  
-#ifndef __GST_OSX_VIDEO_SINK_H__
-#define __GST_OSX_VIDEO_SINK_H__
+#ifndef __GTK_OSX_VIDEO_SINK_H__
+#define __GTK_OSX_VIDEO_SINK_H__
 
 #include <gst/gst.h>
 #include <gst/video/gstvideosink.h>
@@ -30,63 +30,45 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_OSX_VIDEO_SINK \
-  (gst_osx_video_sink_get_type())
-#define GST_OSX_VIDEO_SINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj), GST_TYPE_OSX_VIDEO_SINK, GstOSXVideoSink))
-#define GST_OSX_VIDEO_SINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass), GST_TYPE_OSX_VIDEO_SINK, GstOSXVideoSinkClass))
-#define GST_IS_OSX_VIDEO_SINK(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj), GST_TYPE_OSX_VIDEO_SINK))
-#define GST_IS_OSX_VIDEO_SINK_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass), GST_TYPE_OSX_VIDEO_SINK))
+#define GTK_TYPE_OSX_VIDEO_SINK            (gtk_osx_video_sink_get_type())
+#define GTK_OSX_VIDEO_SINK(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj), GTK_TYPE_OSX_VIDEO_SINK, GtkOSXVideoSink))
+#define GTK_OSX_VIDEO_SINK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass), GTK_TYPE_OSX_VIDEO_SINK, GtkOSXVideoSinkClass))
+#define GTK_IS_OSX_VIDEO_SINK(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj), GTK_TYPE_OSX_VIDEO_SINK))
+#define GTK_IS_OSX_VIDEO_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass), GTK_TYPE_OSX_VIDEO_SINK))
 
-typedef struct _GstOSXVideoSink      GstOSXVideoSink;
-typedef struct _GstOSXVideoSinkClass GstOSXVideoSinkClass;
+typedef struct _GtkOSXVideoSink      GtkOSXVideoSink;
+typedef struct _GtkOSXVideoSinkClass GtkOSXVideoSinkClass;
 
-struct _GstOSXVideoSink {
-  GstVideoSink     videosink;
+struct _GtkOSXVideoSink {
+        GstVideoSink     videosink;
 
-  /* The GdkWindow and NSView to draw on. */
-  GdkWindow       *window;
-  NSView          *view;
+        /* The GdkWindow and NSView to draw on. */
+        GdkWindow       *window;
+        NSView          *view;
 
-  /* When no window is given us, we create our own toplevel window
-   * with a drawing area to get an NSView from.
-   */
-  GtkWidget       *toplevel;
-  GtkWidget       *area;
+        /* When no window is given us, we create our own toplevel window
+         * with a drawing area to get an NSView from.
+         */
+        GtkWidget       *toplevel;
+        GtkWidget       *area;
 
-  int              width;
-  int              height;
-  guint32          format;
+        int              width;
+        int              height;
 
-  gint             fps_n;
-  gint             fps_d;
-  
-  GstClockTime     time;
-  
-  gboolean         sw_scaling_failed;
-
-  // 
-  int              i_effect;
-  gulong           pi_texture;
-  float            f_x;
-  float            f_y;
-  int              init_done;
-  char            *texture_buffer;
-  NSOpenGLContext *gl_context;
+        NSOpenGLContext *gl_context;
+        gulong           texture;
+        float            f_x;
+        float            f_y;
+        int              init_done;
+        char            *texture_buffer;
 };
 
-struct _GstOSXVideoSinkClass {
-  GstVideoSinkClass parent_class;
-
-  /* signal callbacks */
-  void (*view_created) (GstElement* element, gpointer view);
+struct _GtkOSXVideoSinkClass {
+        GstVideoSinkClass parent_class;
 };
 
-GType gst_osx_video_sink_get_type (void);
+GType gtk_osx_video_sink_get_type (void);
 
 G_END_DECLS
 
-#endif /* __GST_OSX_VIDEO_SINK_H__ */
+#endif /* __GTK_OSX_VIDEO_SINK_H__ */

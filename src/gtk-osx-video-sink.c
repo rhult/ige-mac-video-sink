@@ -36,44 +36,43 @@
 #include "gtk-osx-video-sink.h"
 #include "gtk-osx-video-embed.h"
 
-/* NOTE: We are declaring this because GTK+ doesn't install the header
- * for now.
+/* NOTE: We are declaring this here for now, because GTK+ doesn't
+ * install the header yet (planned but won't do it just yet).
  */
 NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
 
 /* Debugging category */
-GST_DEBUG_CATEGORY (gst_debug_osx_video_sink);
-#define GST_CAT_DEFAULT gst_debug_osx_video_sink
+GST_DEBUG_CATEGORY (gst_debug_gtk_osx_video_sink);
+#define GST_CAT_DEFAULT gst_debug_gtk_osx_video_sink
 
 /* ElementFactory information */
-static const GstElementDetails gst_osx_video_sink_details =
+static const GstElementDetails gtk_osx_video_sink_details =
 GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
-    "Sink/Video",
-    "GTK+ OS X videosink",
-    "Richard Hult <richard at imendio dot com>");
+                     "Sink/Video",
+                     "GTK+ OS X videosink",
+                     "Richard Hult <richard at imendio dot com>");
 
 /* Default template - initiated with class struct to allow gst-register to work
    without X running */
-static GstStaticPadTemplate gst_osx_video_sink_sink_template_factory =
+static GstStaticPadTemplate gtk_osx_video_sink_sink_template_factory =
 GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw-yuv, "
-        "framerate = (fraction) [ 0, MAX ], "
-        "width = (int) [ 1, MAX ], "
-	"height = (int) [ 1, MAX ], "
+                         GST_PAD_SINK,
+                         GST_PAD_ALWAYS,
+                         GST_STATIC_CAPS ("video/x-raw-yuv, "
+                                          "framerate = (fraction) [ 0, MAX ], "
+                                          "width = (int) [ 1, MAX ], "
+                                          "height = (int) [ 1, MAX ], "
 #if G_BYTE_ORDER == G_BIG_ENDIAN
-       "format = (fourcc) YUY2")
+                                          "format = (fourcc) YUY2"
 #else
-        "format = (fourcc) UYVY")
+                                          "format = (fourcc) UYVY"
 #endif
-   );
+                                 ));
 
-enum
-{
-  ARG_0,
-  ARG_EMBED,
-  ARG_FULLSCREEN
+enum {
+        ARG_0,
+        ARG_EMBED,
+        ARG_FULLSCREEN
 };
 
 #define ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
@@ -83,15 +82,13 @@ static GstVideoSinkClass *parent_class = NULL;
 
 
 static void
-osx_video_sink_init_texture (GstOSXVideoSink *sink)
+osx_video_sink_init_texture (GtkOSXVideoSink *sink)
 {
         [sink->gl_context makeCurrentContext];
 
-        if (sink->pi_texture) {
-                glDeleteTextures (1, &sink->pi_texture);
+        if (sink->texture) {
+                glDeleteTextures (1, &sink->texture);
         }
-
-        g_print ("creating texture buffer: %d %d\n", sink->width, sink->height);
 
         if (sink->texture_buffer) {
                 sink->texture_buffer = g_realloc (sink->texture_buffer, 
@@ -100,7 +97,7 @@ osx_video_sink_init_texture (GstOSXVideoSink *sink)
                 sink->texture_buffer = g_malloc0 (sink->width * sink->height * sizeof (short));
         }
 
-        glGenTextures (1, &sink->pi_texture);
+        glGenTextures (1, &sink->texture);
 
         glEnable (GL_TEXTURE_RECTANGLE_EXT);
         glEnable (GL_UNPACK_CLIENT_STORAGE_APPLE);
@@ -108,7 +105,7 @@ osx_video_sink_init_texture (GstOSXVideoSink *sink)
         glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
         glPixelStorei (GL_UNPACK_ROW_LENGTH, sink->width);
   
-        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->pi_texture);
+        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture);
 
         /* Use VRAM texturing */
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
@@ -140,9 +137,8 @@ osx_video_sink_init_texture (GstOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_reload_texture (GstOSXVideoSink *sink)
+osx_video_sink_reload_texture (GtkOSXVideoSink *sink)
 {
-        // needed?
         if (!sink->init_done) {
                 return;
         }
@@ -151,7 +147,7 @@ osx_video_sink_reload_texture (GstOSXVideoSink *sink)
 
         [sink->gl_context makeCurrentContext];
 
-        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->pi_texture);
+        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture);
         glPixelStorei (GL_UNPACK_ROW_LENGTH, sink->width);
 
         /* glTexSubImage2D is faster than glTexImage2D
@@ -165,7 +161,7 @@ osx_video_sink_reload_texture (GstOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_draw_quad (GstOSXVideoSink *sink)
+osx_video_sink_draw_quad (GtkOSXVideoSink *sink)
 {
         sink->f_x = 1.0;
         sink->f_y = 1.0;
@@ -192,7 +188,7 @@ osx_video_sink_draw_quad (GstOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_draw (GstOSXVideoSink *sink)
+osx_video_sink_draw (GtkOSXVideoSink *sink)
 {
         long params[] = { 1 };
 
@@ -207,7 +203,7 @@ osx_video_sink_draw (GstOSXVideoSink *sink)
                 return;
         }
 
-        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->pi_texture); // FIXME
+        glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture); // FIXME
 
         osx_video_sink_draw_quad (sink);
 
@@ -215,7 +211,7 @@ osx_video_sink_draw (GstOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_display_texture (GstOSXVideoSink *sink)
+osx_video_sink_display_texture (GtkOSXVideoSink *sink)
 {
         ALLOC_POOL;
 
@@ -232,7 +228,7 @@ osx_video_sink_display_texture (GstOSXVideoSink *sink)
 }
 
 static NSOpenGLContext *
-osx_video_sink_get_context (GstOSXVideoSink *sink)
+osx_video_sink_get_context (GtkOSXVideoSink *sink)
 {
         if (!sink->gl_context) {
                 NSOpenGLContext              *context;
@@ -270,7 +266,7 @@ osx_video_sink_get_context (GstOSXVideoSink *sink)
                 /* Black background */
                 glClearColor (0.0, 0.0, 0.0, 0.0);
 
-                sink->pi_texture = 0;
+                sink->texture = 0;
                 sink->texture_buffer = NULL;
                 //sink->width = frame.size.width;
                 //sink->height = frame.size.height;
@@ -287,7 +283,7 @@ osx_video_sink_get_context (GstOSXVideoSink *sink)
 
 #if 0
 static void
-osx_video_sink_destroy_context (GstOSXVideoSink *sink)
+osx_video_sink_destroy_context (GtkOSXVideoSink *sink)
 {
         if (sink->gl_context) {
                 if ([sink->gl_context view] == sink->view) {
@@ -299,307 +295,292 @@ osx_video_sink_destroy_context (GstOSXVideoSink *sink)
 }
 #endif
 
-/*
- * Element stuff
-*/
-
 static gboolean
-gst_osx_video_sink_setcaps (GstBaseSink *bsink, 
+gtk_osx_video_sink_setcaps (GstBaseSink *bsink, 
                             GstCaps     *caps)
 {
-  GstOSXVideoSink *osxvideosink;
-  GstStructure    *structure;
-  gboolean         result;
-  gint             video_width, video_height;
-  const GValue    *framerate;
+        GtkOSXVideoSink *sink;
+        GstStructure    *structure;
+        gboolean         result;
+        gint             video_width, video_height;
+        const GValue    *framerate;
 
-  osxvideosink = GST_OSX_VIDEO_SINK (bsink);
+        sink = GTK_OSX_VIDEO_SINK (bsink);
 
-  GST_DEBUG_OBJECT (osxvideosink, "caps: %" GST_PTR_FORMAT, caps);
+        GST_DEBUG_OBJECT (sink, "caps: %" GST_PTR_FORMAT, caps);
 
-  structure = gst_caps_get_structure (caps, 0);
-  result = gst_structure_get_int (structure, "width", &video_width);
-  result &= gst_structure_get_int (structure, "height", &video_height);
-  framerate = gst_structure_get_value (structure, "framerate");
-  result &= (framerate != NULL);
+        structure = gst_caps_get_structure (caps, 0);
+        result = gst_structure_get_int (structure, "width", &video_width);
+        result &= gst_structure_get_int (structure, "height", &video_height);
+        framerate = gst_structure_get_value (structure, "framerate");
+        result &= (framerate != NULL);
 
-  if (!result) {
-    goto beach;
-  }
+        if (!result) {
+                goto beach;
+        }
 
-  osxvideosink->fps_n = gst_value_get_fraction_numerator (framerate);
-  osxvideosink->fps_d = gst_value_get_fraction_denominator (framerate);
+        GST_DEBUG_OBJECT (sink, "our format is: %dx%d video",
+                          video_width, video_height);
 
-  GST_DEBUG_OBJECT (osxvideosink, "our format is: %dx%d video at %d/%d fps",
-      video_width, video_height, osxvideosink->fps_n, osxvideosink->fps_d);
+        GST_VIDEO_SINK_WIDTH (sink) = video_width;
+        GST_VIDEO_SINK_HEIGHT (sink) = video_height;
 
-  GST_VIDEO_SINK_WIDTH (osxvideosink) = video_width;
-  GST_VIDEO_SINK_HEIGHT (osxvideosink) = video_height;
+        //gtk_osx_video_sink_osxwindow_resize (sink, sink->osxwindow,
+        //    video_width, video_height);
+        result = TRUE;
 
-  //gst_osx_video_sink_osxwindow_resize (osxvideosink, osxvideosink->osxwindow,
-  //    video_width, video_height);
-  result = TRUE;
-
-beach:
-  return result;
-
+ beach:
+        return result;
 }
 
 static GstStateChangeReturn
-gst_osx_video_sink_change_state (GstElement     *element,
+gtk_osx_video_sink_change_state (GstElement     *element,
                                  GstStateChange  transition)
 {
-  GstOSXVideoSink *sink;
+        GtkOSXVideoSink *sink;
 
-  sink = GST_OSX_VIDEO_SINK (element);
+        sink = GTK_OSX_VIDEO_SINK (element);
 
-  GST_DEBUG_OBJECT (sink, "%s => %s", 
-		    gst_element_state_get_name(GST_STATE_TRANSITION_CURRENT (transition)),
-		    gst_element_state_get_name(GST_STATE_TRANSITION_NEXT (transition)));
+        GST_DEBUG_OBJECT (sink, "%s => %s", 
+                          gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
+                          gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
-  switch (transition) {
-    case GST_STATE_CHANGE_NULL_TO_READY:
-      /* No window is given to us, create our own toplevel. */
-      if (!sink->window) {
-        GtkWidget *toplevel;
-        GtkWidget *area;
+        switch (transition) {
+        case GST_STATE_CHANGE_NULL_TO_READY:
+                /* No window is given to us, create our own toplevel. */
+                if (!sink->window) {
+                        GtkWidget *toplevel;
+                        GtkWidget *area;
 
-        GST_VIDEO_SINK_WIDTH (sink) = 320;
-        GST_VIDEO_SINK_HEIGHT (sink) = 240;
+                        GST_VIDEO_SINK_WIDTH (sink) = 320;
+                        GST_VIDEO_SINK_HEIGHT (sink) = 240;
 
-        toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+                        toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 
-        area = gtk_drawing_area_new ();
-        gtk_widget_set_size_request (area, 320, 240);
+                        area = gtk_drawing_area_new ();
+                        gtk_widget_set_size_request (area, 320, 240);
 
-        // FIXME: experiment with disabling doublebuffering on the
-        // area? unsetting bg etc, things like that.
+                        // FIXME: experiment with disabling doublebuffering on the
+                        // area? unsetting bg etc, things like that.
 
-        gtk_widget_set_double_buffered (area, FALSE);
+                        gtk_widget_set_double_buffered (area, FALSE);
 
-        gtk_container_add (GTK_CONTAINER (toplevel), area);
+                        gtk_container_add (GTK_CONTAINER (toplevel), area);
 
-        gtk_widget_show_all (toplevel);
+                        gtk_widget_show_all (toplevel);
 
-        gtk_widget_realize (toplevel); // FIXME
-        gtk_widget_realize (area); // FIXME
+                        //gtk_widget_realize (toplevel); // FIXME
+                        //gtk_widget_realize (area); // FIXME
 
-        sink->toplevel = toplevel;
-        sink->area = area;
-        sink->window = area->window;
-        sink->view = gdk_quartz_window_get_nsview (sink->window);
+                        sink->toplevel = toplevel;
+                        sink->area = area;
+                        sink->window = area->window;
+                        sink->view = gdk_quartz_window_get_nsview (sink->window);
 
-        osx_video_sink_get_context (sink);
-      } else {
-        /* Resize if we are in control of the window. */
-        if (sink->area) {
-          gtk_widget_set_size_request (sink->area,
-                                       GST_VIDEO_SINK_WIDTH (sink),
-                                       GST_VIDEO_SINK_HEIGHT (sink));
+                        osx_video_sink_get_context (sink);
+                } else {
+                        /* Resize if we are in control of the window. */
+                        if (sink->area) {
+                                gtk_widget_set_size_request (sink->area,
+                                                             GST_VIDEO_SINK_WIDTH (sink),
+                                                             GST_VIDEO_SINK_HEIGHT (sink));
+                        }
+                }
+                break;
+
+        case GST_STATE_CHANGE_READY_TO_PAUSED:
+                GST_DEBUG ("ready to paused");
+                if (sink->window)
+                        ;//gtk_osx_video_sink_osxwindow_clear (sink,
+
+                break;
+
+        case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+                break;
+
+        case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+                break;
+
+        case GST_STATE_CHANGE_PAUSED_TO_READY:
+                GST_VIDEO_SINK_WIDTH (sink) = 0;
+                GST_VIDEO_SINK_HEIGHT (sink) = 0;
+                break;
+
+        case GST_STATE_CHANGE_READY_TO_NULL:
+                if (sink->toplevel) {
+                        gtk_widget_destroy (sink->toplevel);
+                        sink->toplevel = NULL;
+                        sink->area = NULL;
+                        sink->window = NULL;
+                }
+
+                // FIXME: Should we leave the window if we were given one?
+
+                break;
         }
-      }
-      break;
 
-    case GST_STATE_CHANGE_READY_TO_PAUSED:
-      GST_DEBUG ("ready to paused");
-      if (sink->window)
-        ;//gst_osx_video_sink_osxwindow_clear (osxvideosink,
-
-      sink->time = 0;
-      break;
-
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-      break;
-
-    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      break;
-
-    case GST_STATE_CHANGE_PAUSED_TO_READY:
-      sink->fps_n = 0;
-      sink->fps_d = 0;
-      sink->sw_scaling_failed = FALSE;
-      GST_VIDEO_SINK_WIDTH (sink) = 0;
-      GST_VIDEO_SINK_HEIGHT (sink) = 0;
-      break;
-
-    case GST_STATE_CHANGE_READY_TO_NULL:
-      if (sink->toplevel) {
-        gtk_widget_destroy (sink->toplevel);
-        sink->toplevel = NULL;
-        sink->area = NULL;
-        sink->window = NULL;
-      }
-
-      // FIXME: Should we leave the window if we were given one?
-
-      break;
-  }
-
-  return (GST_ELEMENT_CLASS (parent_class))->change_state (element, transition);
-
+        return (GST_ELEMENT_CLASS (parent_class))->change_state (element, transition);
 }
 
 static GstFlowReturn
-gst_osx_video_sink_show_frame (GstBaseSink *bsink, 
+gtk_osx_video_sink_show_frame (GstBaseSink *bsink, 
                                GstBuffer   *buf)
 {
-  GstOSXVideoSink *sink;
+        GtkOSXVideoSink *sink;
 
-  GST_DEBUG ("show_frame");
+        GST_DEBUG ("show_frame");
 
-  sink = GST_OSX_VIDEO_SINK (bsink);
+        sink = GTK_OSX_VIDEO_SINK (bsink);
 
-  memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
+        memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
 
-  osx_video_sink_display_texture (sink);
+        osx_video_sink_display_texture (sink);
 
-  return GST_FLOW_OK;
+        return GST_FLOW_OK;
 }
 
 static void
-gst_osx_video_sink_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * pspec)
+gtk_osx_video_sink_set_property (GObject      *object,
+                                 guint         prop_id,
+                                 const GValue *value,
+                                 GParamSpec   *pspec)
 {
-  GstOSXVideoSink *osxvideosink;
+        GtkOSXVideoSink *sink;
 
-  g_return_if_fail (GST_IS_OSX_VIDEO_SINK (object));
+        sink = GTK_OSX_VIDEO_SINK (object);
 
-  osxvideosink = GST_OSX_VIDEO_SINK (object);
-
-  switch (prop_id) {
-    case ARG_EMBED:
-            //osxvideosink->embed = g_value_get_boolean (value);
-      break;
-    case ARG_FULLSCREEN:
-            //osxvideosink->fullscreen = g_value_get_boolean (value);
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
+        switch (prop_id) {
+        case ARG_EMBED:
+                //sink->embed = g_value_get_boolean (value);
+                break;
+        case ARG_FULLSCREEN:
+                //sink->fullscreen = g_value_get_boolean (value);
+                break;
+        default:
+                G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                break;
+        }
 }
 
 static void
-gst_osx_video_sink_get_property (GObject    *object,
+gtk_osx_video_sink_get_property (GObject    *object,
                                  guint       prop_id,
                                  GValue     *value,
                                  GParamSpec *pspec)
 {
-  GstOSXVideoSink *osxvideosink;
+        GtkOSXVideoSink *sink;
 
-  osxvideosink = GST_OSX_VIDEO_SINK (object);
+        sink = GTK_OSX_VIDEO_SINK (object);
 
-  switch (prop_id) {
-    case ARG_EMBED:
-            // g_value_set_boolean (value, osxvideosink->embed);
-      break;
-    case ARG_FULLSCREEN:
-            //g_value_set_boolean (value, osxvideosink->fullscreen);
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
+        switch (prop_id) {
+        case ARG_EMBED:
+                // g_value_set_boolean (value, sink->embed);
+                break;
+        case ARG_FULLSCREEN:
+                //g_value_set_boolean (value, sink->fullscreen);
+                break;
+        default:
+                G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+                break;
+        }
 }
 
 static void
-gst_osx_video_sink_init (GstOSXVideoSink *sink)
+gtk_osx_video_sink_init (GtkOSXVideoSink *sink)
 {
-  sink->window = NULL;
-  sink->toplevel = NULL;
-  sink->area = NULL;
+        sink->window = NULL;
+        sink->toplevel = NULL;
+        sink->area = NULL;
 
-  sink->fps_n = 0;
-  sink->fps_d = 0;
-
-  sink->width = 320;
-  sink->height = 240;
+        sink->width = 320;
+        sink->height = 240;
 }
 
 static void
 gtk_osx_video_sink_set_widget (GtkOSXVideoEmbed *embed, 
                                GtkWidget        *widget)
 {
+        g_print ("Sink got called, set_widget\n");
         // ...
 }
 
 static void
-gst_osx_video_sink_base_init (gpointer g_class)
+gtk_osx_video_sink_base_init (gpointer g_class)
 {
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
+        GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-  gst_element_class_set_details (element_class, &gst_osx_video_sink_details);
+        gst_element_class_set_details (element_class, &gtk_osx_video_sink_details);
 
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&gst_osx_video_sink_sink_template_factory));
+        gst_element_class_add_pad_template (
+                element_class,
+                gst_static_pad_template_get (&gtk_osx_video_sink_sink_template_factory));
 }
 
 static void
-gst_osx_video_sink_class_init (GstOSXVideoSinkClass * klass)
+gtk_osx_video_sink_class_init (GtkOSXVideoSinkClass * klass)
 {
-  GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
-  GstBaseSinkClass *gstbasesink_class;
+        GObjectClass *gobject_class;
+        GstElementClass *gstelement_class;
+        GstBaseSinkClass *gstbasesink_class;
 
-  gobject_class = (GObjectClass *) klass;
-  gstelement_class = (GstElementClass *) klass;
-  gstbasesink_class = (GstBaseSinkClass *) klass;
+        gobject_class = (GObjectClass *) klass;
+        gstelement_class = (GstElementClass *) klass;
+        gstbasesink_class = (GstBaseSinkClass *) klass;
 
-  parent_class = g_type_class_ref (GST_TYPE_VIDEO_SINK);
+        parent_class = g_type_class_ref (GST_TYPE_VIDEO_SINK);
 
-  gobject_class->set_property = gst_osx_video_sink_set_property;
-  gobject_class->get_property = gst_osx_video_sink_get_property;
+        gobject_class->set_property = gtk_osx_video_sink_set_property;
+        gobject_class->get_property = gtk_osx_video_sink_get_property;
 
-  gstbasesink_class->set_caps = gst_osx_video_sink_setcaps;
-  gstbasesink_class->preroll = gst_osx_video_sink_show_frame;
-  gstbasesink_class->render = gst_osx_video_sink_show_frame;
-  gstelement_class->change_state = gst_osx_video_sink_change_state;
+        gstbasesink_class->set_caps = gtk_osx_video_sink_setcaps;
+        gstbasesink_class->preroll = gtk_osx_video_sink_show_frame;
+        gstbasesink_class->render = gtk_osx_video_sink_show_frame;
+        gstelement_class->change_state = gtk_osx_video_sink_change_state;
 
-  /**
-   * GstOSXVideoSink:embed
-   *
-   * Set to #TRUE if you are embedding the video window in an application.
-   *
-   **/
+        /**
+         * GtkOSXVideoSink:embed
+         *
+         * Set to #TRUE if you are embedding the video window in an application.
+         *
+         **/
+        g_object_class_install_property (
+                gobject_class, ARG_EMBED,
+                g_param_spec_boolean ("embed", "embed", "When enabled, it  "
+                                      "can be embedded", FALSE, G_PARAM_READWRITE));
 
-  g_object_class_install_property (gobject_class, ARG_EMBED,
-      g_param_spec_boolean ("embed", "embed", "When enabled, it  "
-          "can be embedded", FALSE, G_PARAM_READWRITE));
-
-  /**
-   * GstOSXVideoSink:fullscreen
-   *
-   * Set to #TRUE to have the video displayed in fullscreen.
-   **/
-
-  g_object_class_install_property (gobject_class, ARG_FULLSCREEN,
-      g_param_spec_boolean ("fullscreen", "fullscreen",
-          "When enabled, the view  " "is fullscreen", FALSE,
-          G_PARAM_READWRITE));
+        /**
+         * GtkOSXVideoSink:fullscreen
+         *
+         * Set to #TRUE to have the video displayed in fullscreen.
+         **/
+        g_object_class_install_property (gobject_class, ARG_FULLSCREEN,
+                                         g_param_spec_boolean ("fullscreen", "fullscreen",
+                                                               "When enabled, the view  " "is fullscreen", FALSE,
+                                                               G_PARAM_READWRITE));
 }
 
 static void
 gtk_osx_video_embed_iface_init (GtkOSXVideoEmbedIface *iface)
 {
-  iface->set_widget = gtk_osx_video_sink_set_widget;
+        iface->set_widget = gtk_osx_video_sink_set_widget;
 }
 
 GType
-gst_osx_video_sink_get_type (void)
+gtk_osx_video_sink_get_type (void)
 {
         static GType sink_type = 0;
 
         if (!sink_type) {
                 const GTypeInfo sink_info = {
-                        sizeof (GstOSXVideoSinkClass),
-                        gst_osx_video_sink_base_init,
+                        sizeof (GtkOSXVideoSinkClass),
+                        gtk_osx_video_sink_base_init,
                         NULL,
-                        (GClassInitFunc) gst_osx_video_sink_class_init,
+                        (GClassInitFunc) gtk_osx_video_sink_class_init,
                         NULL,
                         NULL,
-                        sizeof (GstOSXVideoSink),
+                        sizeof (GtkOSXVideoSink),
                         0,
-                        (GInstanceInitFunc) gst_osx_video_sink_init,
+                        (GInstanceInitFunc) gtk_osx_video_sink_init,
                 };
     
                 const GInterfaceInfo embed_info = {
@@ -609,7 +590,7 @@ gst_osx_video_sink_get_type (void)
                 };
 
                 sink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
-                                                    "GstOSXVideoSink", &sink_info, 0);
+                                                    "GtkOSXVideoSink", &sink_info, 0);
 
                 g_type_add_interface_static (sink_type, GTK_TYPE_OSX_VIDEO_EMBED,
                                              &embed_info);
@@ -623,10 +604,10 @@ plugin_init (GstPlugin * plugin)
 {
 
   if (!gst_element_register (plugin, "gtkosxvideosink",
-          GST_RANK_PRIMARY, GST_TYPE_OSX_VIDEO_SINK))
+          GST_RANK_PRIMARY, GTK_TYPE_OSX_VIDEO_SINK))
     return FALSE;
 
-  GST_DEBUG_CATEGORY_INIT (gst_debug_osx_video_sink, "gtkosxvideosink", 0,
+  GST_DEBUG_CATEGORY_INIT (gst_debug_gtk_osx_video_sink, "gtkosxvideosink", 0,
       "gtkosxvideosink element");
 
   return TRUE;

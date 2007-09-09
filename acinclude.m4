@@ -118,6 +118,6 @@ AC_DEFUN([AG_GST_SET_PLUGINDIR],
   AC_MSG_NOTICE([Using $PLUGINDIR as the plugin install location])
 
   dnl plugin directory configure-time variable for use in Makefile.am
-  plugindir="\$(libdir)/gstreamer-$GST_MAJORMINOR"
+  plugindir="\$(libdir)/gstreamer-0.10"
   AC_SUBST(plugindir)
 ])

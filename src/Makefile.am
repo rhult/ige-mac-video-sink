@@ -4,9 +4,8 @@ plugin_LTLIBRARIES = libgtkosxvideosink.la
 
 libgtkosxvideosink_la_SOURCES = gtk-osx-video-sink.c
 libgtkosxvideosink_la_CFLAGS = $(SINK_CFLAGS) -xobjective-c
-libgtkosxvideosink_la_LIBADD =  $(SINK_LIBS) -lgstvideo-0.10
-
-#libgtkosxvideosink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS) -framework Cocoa -framework OpenGL
+libgtkosxvideosink_la_LIBADD =  $(SINK_LIBS) -lgstvideo-0.10 libgtkosxvideoembed.la
+libgtkosxvideosink_la_LDFLAGS = -module -avoid-version -framework Cocoa -framework OpenGL
 
 noinst_HEADERS = gtk-osx-video-sink.h
 

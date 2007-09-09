@@ -73,15 +73,16 @@ main (int argc, char **argv)
 
         playbin = gst_element_factory_make ("playbin", "playbin");
 
-        video_sink = gst_element_factory_make ("osxvideosink", "video_sink");
+        video_sink = gst_element_factory_make ("gtkosxvideosink", "video_sink");
         audio_sink = gst_element_factory_make ("osxaudiosink", "audio_sink");
 
-        g_object_set (playbin, "video-sink", video_sink, NULL);
-        g_object_set (playbin, "audio-sink", audio_sink, NULL);
+        g_object_set (playbin,
+                      "video-sink", video_sink,
+                      "audio-sink", audio_sink,
+                      "uri", "file:///Users/rhult/ali_512_32.mp4",
+                      NULL);
 
         gst_bin_add (GST_BIN (pipeline), playbin);
-
-        g_object_set (playbin, "uri", "file:///Users/rhult/ali_512_32.mp4", NULL);
 
         area = gtk_drawing_area_new ();
 
@@ -90,7 +91,7 @@ main (int argc, char **argv)
 
         // FIXME: set background to NULL
 
-        gtk_osx_video_embed_set_widget (GTK_OSX_VIDEO_EMBED (video_sink), area);
+        gtk_osx_video_embed_set_widget ((gpointer)video_sink, area); //GTK_OSX_VIDEO_EMBED (video_sink), area);
 
         bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
         gst_bus_add_watch (bus, (GstBusFunc) bus_callback, NULL);
