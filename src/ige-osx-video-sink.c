@@ -71,7 +71,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 enum {
         ARG_0,
-        ARG_EMBED,
         ARG_FULLSCREEN
 };
 
@@ -83,15 +82,13 @@ static GstVideoSinkClass *parent_class = NULL;
 struct _IgeOSXVideoSink {
         GstVideoSink     videosink;
 
-        /* The GdkWindow and NSView to draw on. */
-        GdkWindow       *window;
-        NSView          *view;
+        /* The GtkWidget to draw on. */
+        GtkWidget       *widget;
 
         /* When no window is given us, we create our own toplevel window
          * with a drawing area to get an NSView from.
          */
         GtkWidget       *toplevel;
-        GtkWidget       *area;
 
         int              width;
         int              height;
@@ -117,11 +114,14 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
                 glDeleteTextures (1, &sink->texture);
         }
 
+        /* FIXME: Should make the allocs handle oom gracefully perhaps
+         * for big buffers?
+         */
         if (sink->texture_buffer) {
                 sink->texture_buffer = g_realloc (sink->texture_buffer, 
-                                                  sink->width * sink->height * sizeof (short)); // short or 3byte?
+                                                  sink->width * sink->height * 3);
         } else {
-                sink->texture_buffer = g_malloc0 (sink->width * sink->height * sizeof (short));
+                sink->texture_buffer = g_malloc0 (sink->width * sink->height * 3);
         }
 
         glGenTextures (1, &sink->texture);
@@ -146,14 +146,16 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        /* I have no idea what this exactly does, but it seems to be
-         * necessary for scaling.
+        /* Copied comment: I have no idea what this exactly does, but
+         * it seems to be necessary for scaling.
          */
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
                          GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
                          GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        // glPixelStorei (GL_UNPACK_ROW_LENGTH, 0); WHY ??
+
+        // Copied from the original sink:
+        //glPixelStorei (GL_UNPACK_ROW_LENGTH, 0); //WHY?
 
         glTexImage2D (GL_TEXTURE_RECTANGLE_EXT, 0, GL_RGBA,
                       sink->width, sink->height, 0, 
@@ -190,8 +192,8 @@ osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 static void
 osx_video_sink_draw_quad (IgeOSXVideoSink *sink)
 {
-        sink->f_x = 1.0;
-        sink->f_y = 1.0;
+        //sink->f_x = 1.0;
+        //sink->f_y = 1.0;
 
         glBegin (GL_QUADS);
 
@@ -240,15 +242,31 @@ osx_video_sink_draw (IgeOSXVideoSink *sink)
 static void
 osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 {
+        NSView *view;
+
         ALLOC_POOL;
 
-        if ([sink->view lockFocusIfCanDraw]) {
-                [sink->gl_context setView:sink->view];
+        if (!sink->widget || !sink->widget->window) {
+                return;
+        }
+
+        /* Avoid warnings by not trying to draw on a non-zero sized
+         * view.
+         */
+        if (sink->widget->allocation.width <= 0 ||
+            sink->widget->allocation.height <= 0) {
+                return;
+        }
+
+        view = gdk_quartz_window_get_nsview (sink->widget->window);
+
+        if ([view lockFocusIfCanDraw]) {
+                [sink->gl_context setView:view];
 
                 osx_video_sink_draw (sink);
                 osx_video_sink_reload_texture (sink);
 
-                [sink->view unlockFocus];
+                [view unlockFocus];
         }
 
         RELEASE_POOL;
@@ -300,6 +318,7 @@ osx_video_sink_get_context (IgeOSXVideoSink *sink)
 
                 GST_LOG ("Width: %d Height: %d", sink->width, sink->height);
 
+                sink->init_done = FALSE;
                 osx_video_sink_init_texture (sink);
 
                 RELEASE_POOL;
@@ -343,7 +362,7 @@ osx_video_sink_setcaps (GstBaseSink *bsink,
         result &= (framerate != NULL);
 
         if (!result) {
-                goto beach;
+                return FALSE;
         }
 
         GST_DEBUG_OBJECT (sink, "our format is: %dx%d video",
@@ -352,12 +371,7 @@ osx_video_sink_setcaps (GstBaseSink *bsink,
         GST_VIDEO_SINK_WIDTH (sink) = video_width;
         GST_VIDEO_SINK_HEIGHT (sink) = video_height;
 
-        //ige_osx_video_sink_osxwindow_resize (sink, sink->osxwindow,
-        //    video_width, video_height);
-        result = TRUE;
-
- beach:
-        return result;
+        return TRUE;
 }
 
 #if 0
@@ -365,26 +379,21 @@ osx_video_sink_setcaps (GstBaseSink *bsink,
  * app doesn't, we create a toplevel window containing a drawing area
  * ourselves (mostly for demos and gst-launch testing).
  */
-static IgeWidget *
-osx_video_sink_create_widget (IgeOSXVideoSink *sink)
+static void
+osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
 {
     GstStructure *s;
     GstMessage   *msg;
-    gchar        *tmp;
 
     s = gst_structure_new ("prepare-widget",
-			   "nsview", G_TYPE_POINTER, osxwindow->gstview,
-			   nil);
+			   NULL);
 
-    tmp = gst_structure_to_string (s);
-    GST_DEBUG_OBJECT (osxvideosink, "Sending message %s",
-		      tmp);
-    g_free (tmp);
+    GST_DEBUG_OBJECT (sink, "Sending message 'prepare-widget'");
 
-    msg = gst_message_new_element (GST_OBJECT (osxvideosink), s);
-    gst_element_post_message (GST_ELEMENT (osxvideosink), msg);
+    msg = gst_message_new_element (GST_OBJECT (sink), s);
+    gst_element_post_message (GST_ELEMENT (sink), msg);
 
-    GST_LOG_OBJECT (osxvideosink, "'have-ns-view' message sent");
+    GST_LOG_OBJECT (sink, "'prepare-widget' message sent");
 }
 #endif
 
@@ -402,8 +411,8 @@ osx_video_sink_change_state (GstElement     *element,
 
         switch (transition) {
         case GST_STATE_CHANGE_NULL_TO_READY:
-                /* No window is given to us, create our own toplevel. */
-                if (!sink->window) {
+                /* No widget is given to us, create our own toplevel. */
+                if (!sink->widget) {
                         GtkWidget *toplevel;
                         GtkWidget *area;
 
@@ -419,15 +428,13 @@ osx_video_sink_change_state (GstElement     *element,
                         gtk_widget_show_all (toplevel);
 
                         sink->toplevel = toplevel;
-                        sink->area = area;
-                        sink->window = area->window;
-                        sink->view = gdk_quartz_window_get_nsview (sink->window);
+                        sink->widget = area;
 
                         osx_video_sink_get_context (sink);
                 } else {
                         /* Resize if we are in control of the window. */
-                        if (sink->area) {
-                                gtk_widget_set_size_request (sink->area,
+                        if (sink->toplevel && sink->widget) {
+                                gtk_widget_set_size_request (sink->widget,
                                                              GST_VIDEO_SINK_WIDTH (sink),
                                                              GST_VIDEO_SINK_HEIGHT (sink));
                         }
@@ -436,8 +443,8 @@ osx_video_sink_change_state (GstElement     *element,
 
         case GST_STATE_CHANGE_READY_TO_PAUSED:
                 GST_DEBUG ("ready to paused");
-                if (sink->window)
-                        ;//ige_osx_video_sink_osxwindow_clear (sink,
+                if (sink->widget)
+                        ;//osx_video_sink_clear (sink);
 
                 break;
 
@@ -453,15 +460,12 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
+                /* Do we need to do anything here really? */ 
                 if (sink->toplevel) {
                         gtk_widget_destroy (sink->toplevel);
                         sink->toplevel = NULL;
-                        sink->area = NULL;
-                        sink->window = NULL;
+                        sink->widget = NULL;
                 }
-
-                // FIXME: Should we leave the window if we were given one?
-
                 break;
         }
 
@@ -496,9 +500,6 @@ osx_video_sink_set_property (GObject      *object,
         sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_EMBED:
-                //sink->embed = g_value_get_boolean (value);
-                break;
         case ARG_FULLSCREEN:
                 //sink->fullscreen = g_value_get_boolean (value);
                 break;
@@ -519,9 +520,6 @@ osx_video_sink_get_property (GObject    *object,
         sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_EMBED:
-                // g_value_set_boolean (value, sink->embed);
-                break;
         case ARG_FULLSCREEN:
                 //g_value_set_boolean (value, sink->fullscreen);
                 break;
@@ -534,12 +532,37 @@ osx_video_sink_get_property (GObject    *object,
 static void
 ige_osx_video_sink_init (IgeOSXVideoSink *sink)
 {
-        sink->window = NULL;
         sink->toplevel = NULL;
-        sink->area = NULL;
+        sink->widget = NULL;
 
         sink->width = 320;
         sink->height = 240;
+
+        sink->f_x = 1.0;
+        sink->f_y = 1.0;
+}
+
+static void
+osx_video_sink_size_allocate_cb (GtkWidget       *widget,
+                                 GtkAllocation   *allocation,
+                                 IgeOSXVideoSink *sink)
+{
+        sink->init_done = FALSE;
+
+        sink->f_x = allocation->width / sink->width;
+        sink->f_y = allocation->height / sink->height;
+
+        osx_video_sink_init_texture (sink);
+}
+
+// add teardown too...
+static void
+osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
+{
+        g_signal_connect (sink->widget,
+                          "size-allocate",
+                          G_CALLBACK (osx_video_sink_size_allocate_cb),
+                          sink);
 }
 
 static void
@@ -555,16 +578,12 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
         }
 
         sink->toplevel = NULL;
-        sink->area = NULL;
-        sink->window = NULL;
-        sink->view = NULL;
+        sink->widget = NULL;
 
         if (widget) {
-                // FIXME: should be done in realize_cb
-                sink->window = widget->window;
-                sink->view = gdk_quartz_window_get_nsview (sink->window);
-
+                sink->widget = widget;
                 osx_video_sink_get_context (sink);
+                osx_video_sink_setup_size_handling (sink);
         }
 }
 
@@ -602,25 +621,15 @@ ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
         gstelement_class->change_state = osx_video_sink_change_state;
 
         /**
-         * IgeOSXVideoSink:embed
-         *
-         * Set to #TRUE if you are embedding the video window in an application.
-         *
-         **/
-        g_object_class_install_property (
-                gobject_class, ARG_EMBED,
-                g_param_spec_boolean ("embed", "embed", "When enabled, it  "
-                                      "can be embedded", FALSE, G_PARAM_READWRITE));
-
-        /**
          * IgeOSXVideoSink:fullscreen
          *
          * Set to #TRUE to have the video displayed in fullscreen.
          **/
-        g_object_class_install_property (gobject_class, ARG_FULLSCREEN,
-                                         g_param_spec_boolean ("fullscreen", "fullscreen",
-                                                               "When enabled, the view  " "is fullscreen", FALSE,
-                                                               G_PARAM_READWRITE));
+        g_object_class_install_property (
+                gobject_class, ARG_FULLSCREEN,
+                g_param_spec_boolean ("fullscreen", "fullscreen",
+                                      "When enabled, the view is fullscreen", FALSE,
+                                      G_PARAM_READWRITE));
 }
 
 static void

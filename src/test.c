@@ -114,7 +114,6 @@ main (int argc, char **argv)
         widget = gtk_button_new_from_stock (GTK_STOCK_STOP);
         gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-
         // FIXME: set background to NULL? disable double-buffering?
 
         gtk_widget_show_all (window);
