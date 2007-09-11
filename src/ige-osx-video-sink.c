@@ -33,8 +33,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glext.h>
 
-#include "gtk-osx-video-sink.h"
-#include "gtk-osx-video-embed.h"
+#include "ige-osx-video-sink.h"
+#include "ige-osx-video-embed.h"
 
 /* NOTE: We are declaring this here for now, because GTK+ doesn't
  * install the header yet (planned but won't do it just yet).
@@ -42,11 +42,11 @@
 NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
 
 /* Debugging category */
-GST_DEBUG_CATEGORY (gst_debug_gtk_osx_video_sink);
-#define GST_CAT_DEFAULT gst_debug_gtk_osx_video_sink
+GST_DEBUG_CATEGORY (debug_ige_osx_video_sink);
+#define GST_CAT_DEFAULT debug_ige_osx_video_sink
 
 /* ElementFactory information */
-static const GstElementDetails gtk_osx_video_sink_details =
+static const GstElementDetails ige_osx_video_sink_details =
 GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
                      "Sink/Video",
                      "GTK+ OS X videosink",
@@ -54,7 +54,7 @@ GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
 
 /* Default template - initiated with class struct to allow gst-register to work
    without X running */
-static GstStaticPadTemplate gtk_osx_video_sink_sink_template_factory =
+static GstStaticPadTemplate ige_osx_video_sink_sink_template_factory =
 GST_STATIC_PAD_TEMPLATE ("sink",
                          GST_PAD_SINK,
                          GST_PAD_ALWAYS,
@@ -80,9 +80,36 @@ enum {
 
 static GstVideoSinkClass *parent_class = NULL;
 
+struct _IgeOSXVideoSink {
+        GstVideoSink     videosink;
+
+        /* The GdkWindow and NSView to draw on. */
+        GdkWindow       *window;
+        NSView          *view;
+
+        /* When no window is given us, we create our own toplevel window
+         * with a drawing area to get an NSView from.
+         */
+        GtkWidget       *toplevel;
+        GtkWidget       *area;
+
+        int              width;
+        int              height;
+
+        NSOpenGLContext *gl_context;
+        gulong           texture;
+        float            f_x;
+        float            f_y;
+        int              init_done;
+        char            *texture_buffer;
+};
+
+struct _IgeOSXVideoSinkClass {
+        GstVideoSinkClass parent_class;
+};
 
 static void
-osx_video_sink_init_texture (GtkOSXVideoSink *sink)
+osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 {
         [sink->gl_context makeCurrentContext];
 
@@ -137,7 +164,7 @@ osx_video_sink_init_texture (GtkOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_reload_texture (GtkOSXVideoSink *sink)
+osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 {
         if (!sink->init_done) {
                 return;
@@ -161,7 +188,7 @@ osx_video_sink_reload_texture (GtkOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_draw_quad (GtkOSXVideoSink *sink)
+osx_video_sink_draw_quad (IgeOSXVideoSink *sink)
 {
         sink->f_x = 1.0;
         sink->f_y = 1.0;
@@ -188,7 +215,7 @@ osx_video_sink_draw_quad (GtkOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_draw (GtkOSXVideoSink *sink)
+osx_video_sink_draw (IgeOSXVideoSink *sink)
 {
         long params[] = { 1 };
 
@@ -211,13 +238,13 @@ osx_video_sink_draw (GtkOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_display_texture (GtkOSXVideoSink *sink)
+osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 {
         ALLOC_POOL;
 
         if ([sink->view lockFocusIfCanDraw]) {
                 [sink->gl_context setView:sink->view];
-                
+
                 osx_video_sink_draw (sink);
                 osx_video_sink_reload_texture (sink);
 
@@ -228,7 +255,7 @@ osx_video_sink_display_texture (GtkOSXVideoSink *sink)
 }
 
 static NSOpenGLContext *
-osx_video_sink_get_context (GtkOSXVideoSink *sink)
+osx_video_sink_get_context (IgeOSXVideoSink *sink)
 {
         if (!sink->gl_context) {
                 NSOpenGLContext              *context;
@@ -283,7 +310,7 @@ osx_video_sink_get_context (GtkOSXVideoSink *sink)
 
 #if 0
 static void
-osx_video_sink_destroy_context (GtkOSXVideoSink *sink)
+osx_video_sink_destroy_context (IgeOSXVideoSink *sink)
 {
         if (sink->gl_context) {
                 if ([sink->gl_context view] == sink->view) {
@@ -296,16 +323,16 @@ osx_video_sink_destroy_context (GtkOSXVideoSink *sink)
 #endif
 
 static gboolean
-gtk_osx_video_sink_setcaps (GstBaseSink *bsink, 
-                            GstCaps     *caps)
+osx_video_sink_setcaps (GstBaseSink *bsink, 
+                        GstCaps     *caps)
 {
-        GtkOSXVideoSink *sink;
+        IgeOSXVideoSink *sink;
         GstStructure    *structure;
         gboolean         result;
         gint             video_width, video_height;
         const GValue    *framerate;
 
-        sink = GTK_OSX_VIDEO_SINK (bsink);
+        sink = IGE_OSX_VIDEO_SINK (bsink);
 
         GST_DEBUG_OBJECT (sink, "caps: %" GST_PTR_FORMAT, caps);
 
@@ -325,7 +352,7 @@ gtk_osx_video_sink_setcaps (GstBaseSink *bsink,
         GST_VIDEO_SINK_WIDTH (sink) = video_width;
         GST_VIDEO_SINK_HEIGHT (sink) = video_height;
 
-        //gtk_osx_video_sink_osxwindow_resize (sink, sink->osxwindow,
+        //ige_osx_video_sink_osxwindow_resize (sink, sink->osxwindow,
         //    video_width, video_height);
         result = TRUE;
 
@@ -333,13 +360,41 @@ gtk_osx_video_sink_setcaps (GstBaseSink *bsink,
         return result;
 }
 
-static GstStateChangeReturn
-gtk_osx_video_sink_change_state (GstElement     *element,
-                                 GstStateChange  transition)
+#if 0
+/* Sends a message to the bus to let the app provide a widget. If the
+ * app doesn't, we create a toplevel window containing a drawing area
+ * ourselves (mostly for demos and gst-launch testing).
+ */
+static IgeWidget *
+osx_video_sink_create_widget (IgeOSXVideoSink *sink)
 {
-        GtkOSXVideoSink *sink;
+    GstStructure *s;
+    GstMessage   *msg;
+    gchar        *tmp;
 
-        sink = GTK_OSX_VIDEO_SINK (element);
+    s = gst_structure_new ("prepare-widget",
+			   "nsview", G_TYPE_POINTER, osxwindow->gstview,
+			   nil);
+
+    tmp = gst_structure_to_string (s);
+    GST_DEBUG_OBJECT (osxvideosink, "Sending message %s",
+		      tmp);
+    g_free (tmp);
+
+    msg = gst_message_new_element (GST_OBJECT (osxvideosink), s);
+    gst_element_post_message (GST_ELEMENT (osxvideosink), msg);
+
+    GST_LOG_OBJECT (osxvideosink, "'have-ns-view' message sent");
+}
+#endif
+
+static GstStateChangeReturn
+osx_video_sink_change_state (GstElement     *element,
+                             GstStateChange  transition)
+{
+        IgeOSXVideoSink *sink;
+
+        sink = IGE_OSX_VIDEO_SINK (element);
 
         GST_DEBUG_OBJECT (sink, "%s => %s", 
                           gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
@@ -360,17 +415,8 @@ gtk_osx_video_sink_change_state (GstElement     *element,
                         area = gtk_drawing_area_new ();
                         gtk_widget_set_size_request (area, 320, 240);
 
-                        // FIXME: experiment with disabling doublebuffering on the
-                        // area? unsetting bg etc, things like that.
-
-                        gtk_widget_set_double_buffered (area, FALSE);
-
                         gtk_container_add (GTK_CONTAINER (toplevel), area);
-
                         gtk_widget_show_all (toplevel);
-
-                        //gtk_widget_realize (toplevel); // FIXME
-                        //gtk_widget_realize (area); // FIXME
 
                         sink->toplevel = toplevel;
                         sink->area = area;
@@ -391,7 +437,7 @@ gtk_osx_video_sink_change_state (GstElement     *element,
         case GST_STATE_CHANGE_READY_TO_PAUSED:
                 GST_DEBUG ("ready to paused");
                 if (sink->window)
-                        ;//gtk_osx_video_sink_osxwindow_clear (sink,
+                        ;//ige_osx_video_sink_osxwindow_clear (sink,
 
                 break;
 
@@ -423,14 +469,14 @@ gtk_osx_video_sink_change_state (GstElement     *element,
 }
 
 static GstFlowReturn
-gtk_osx_video_sink_show_frame (GstBaseSink *bsink, 
-                               GstBuffer   *buf)
+osx_video_sink_show_frame (GstBaseSink *bsink, 
+                           GstBuffer   *buf)
 {
-        GtkOSXVideoSink *sink;
+        IgeOSXVideoSink *sink;
 
         GST_DEBUG ("show_frame");
 
-        sink = GTK_OSX_VIDEO_SINK (bsink);
+        sink = IGE_OSX_VIDEO_SINK (bsink);
 
         memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
 
@@ -440,14 +486,14 @@ gtk_osx_video_sink_show_frame (GstBaseSink *bsink,
 }
 
 static void
-gtk_osx_video_sink_set_property (GObject      *object,
-                                 guint         prop_id,
-                                 const GValue *value,
-                                 GParamSpec   *pspec)
+osx_video_sink_set_property (GObject      *object,
+                             guint         prop_id,
+                             const GValue *value,
+                             GParamSpec   *pspec)
 {
-        GtkOSXVideoSink *sink;
+        IgeOSXVideoSink *sink;
 
-        sink = GTK_OSX_VIDEO_SINK (object);
+        sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
         case ARG_EMBED:
@@ -463,14 +509,14 @@ gtk_osx_video_sink_set_property (GObject      *object,
 }
 
 static void
-gtk_osx_video_sink_get_property (GObject    *object,
-                                 guint       prop_id,
-                                 GValue     *value,
-                                 GParamSpec *pspec)
+osx_video_sink_get_property (GObject    *object,
+                             guint       prop_id,
+                             GValue     *value,
+                             GParamSpec *pspec)
 {
-        GtkOSXVideoSink *sink;
+        IgeOSXVideoSink *sink;
 
-        sink = GTK_OSX_VIDEO_SINK (object);
+        sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
         case ARG_EMBED:
@@ -486,7 +532,7 @@ gtk_osx_video_sink_get_property (GObject    *object,
 }
 
 static void
-gtk_osx_video_sink_init (GtkOSXVideoSink *sink)
+ige_osx_video_sink_init (IgeOSXVideoSink *sink)
 {
         sink->window = NULL;
         sink->toplevel = NULL;
@@ -497,30 +543,48 @@ gtk_osx_video_sink_init (GtkOSXVideoSink *sink)
 }
 
 static void
-gtk_osx_video_sink_set_widget (GtkOSXVideoEmbed *embed, 
-                               GtkWidget        *widget)
+osx_video_sink_set_widget (IgeOSXVideoEmbed *embed, 
+                           GtkWidget        *widget)
 {
-        g_print ("Sink got called, set_widget\n");
-        // ...
+        IgeOSXVideoSink *sink;
+
+        sink = IGE_OSX_VIDEO_SINK (embed);
+
+        if (sink->toplevel) {
+                gtk_widget_destroy (sink->toplevel);
+        }
+
+        sink->toplevel = NULL;
+        sink->area = NULL;
+        sink->window = NULL;
+        sink->view = NULL;
+
+        if (widget) {
+                // FIXME: should be done in realize_cb
+                sink->window = widget->window;
+                sink->view = gdk_quartz_window_get_nsview (sink->window);
+
+                osx_video_sink_get_context (sink);
+        }
 }
 
 static void
-gtk_osx_video_sink_base_init (gpointer g_class)
+ige_osx_video_sink_base_init (gpointer g_class)
 {
         GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-        gst_element_class_set_details (element_class, &gtk_osx_video_sink_details);
+        gst_element_class_set_details (element_class, &ige_osx_video_sink_details);
 
         gst_element_class_add_pad_template (
                 element_class,
-                gst_static_pad_template_get (&gtk_osx_video_sink_sink_template_factory));
+                gst_static_pad_template_get (&ige_osx_video_sink_sink_template_factory));
 }
 
 static void
-gtk_osx_video_sink_class_init (GtkOSXVideoSinkClass * klass)
+ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
 {
-        GObjectClass *gobject_class;
-        GstElementClass *gstelement_class;
+        GObjectClass     *gobject_class;
+        GstElementClass  *gstelement_class;
         GstBaseSinkClass *gstbasesink_class;
 
         gobject_class = (GObjectClass *) klass;
@@ -529,16 +593,16 @@ gtk_osx_video_sink_class_init (GtkOSXVideoSinkClass * klass)
 
         parent_class = g_type_class_ref (GST_TYPE_VIDEO_SINK);
 
-        gobject_class->set_property = gtk_osx_video_sink_set_property;
-        gobject_class->get_property = gtk_osx_video_sink_get_property;
+        gobject_class->set_property = osx_video_sink_set_property;
+        gobject_class->get_property = osx_video_sink_get_property;
 
-        gstbasesink_class->set_caps = gtk_osx_video_sink_setcaps;
-        gstbasesink_class->preroll = gtk_osx_video_sink_show_frame;
-        gstbasesink_class->render = gtk_osx_video_sink_show_frame;
-        gstelement_class->change_state = gtk_osx_video_sink_change_state;
+        gstbasesink_class->set_caps = osx_video_sink_setcaps;
+        gstbasesink_class->preroll = osx_video_sink_show_frame;
+        gstbasesink_class->render = osx_video_sink_show_frame;
+        gstelement_class->change_state = osx_video_sink_change_state;
 
         /**
-         * GtkOSXVideoSink:embed
+         * IgeOSXVideoSink:embed
          *
          * Set to #TRUE if you are embedding the video window in an application.
          *
@@ -549,7 +613,7 @@ gtk_osx_video_sink_class_init (GtkOSXVideoSinkClass * klass)
                                       "can be embedded", FALSE, G_PARAM_READWRITE));
 
         /**
-         * GtkOSXVideoSink:fullscreen
+         * IgeOSXVideoSink:fullscreen
          *
          * Set to #TRUE to have the video displayed in fullscreen.
          **/
@@ -560,39 +624,39 @@ gtk_osx_video_sink_class_init (GtkOSXVideoSinkClass * klass)
 }
 
 static void
-gtk_osx_video_embed_iface_init (GtkOSXVideoEmbedIface *iface)
+ige_osx_video_embed_iface_init (IgeOSXVideoEmbedIface *iface)
 {
-        iface->set_widget = gtk_osx_video_sink_set_widget;
+        iface->set_widget = osx_video_sink_set_widget;
 }
 
 GType
-gtk_osx_video_sink_get_type (void)
+ige_osx_video_sink_get_type (void)
 {
         static GType sink_type = 0;
 
         if (!sink_type) {
                 const GTypeInfo sink_info = {
-                        sizeof (GtkOSXVideoSinkClass),
-                        gtk_osx_video_sink_base_init,
+                        sizeof (IgeOSXVideoSinkClass),
+                        ige_osx_video_sink_base_init,
                         NULL,
-                        (GClassInitFunc) gtk_osx_video_sink_class_init,
+                        (GClassInitFunc) ige_osx_video_sink_class_init,
                         NULL,
                         NULL,
-                        sizeof (GtkOSXVideoSink),
+                        sizeof (IgeOSXVideoSink),
                         0,
-                        (GInstanceInitFunc) gtk_osx_video_sink_init,
+                        (GInstanceInitFunc) ige_osx_video_sink_init,
                 };
     
                 const GInterfaceInfo embed_info = {
-                        (GInterfaceInitFunc) gtk_osx_video_embed_iface_init,
+                        (GInterfaceInitFunc) ige_osx_video_embed_iface_init,
                         NULL,
                         NULL,
                 };
 
                 sink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
-                                                    "GtkOSXVideoSink", &sink_info, 0);
+                                                    "IgeOSXVideoSink", &sink_info, 0);
 
-                g_type_add_interface_static (sink_type, GTK_TYPE_OSX_VIDEO_EMBED,
+                g_type_add_interface_static (sink_type, IGE_TYPE_OSX_VIDEO_EMBED,
                                              &embed_info);
         }
 
@@ -600,21 +664,21 @@ gtk_osx_video_sink_get_type (void)
 }
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+plugin_init (GstPlugin *plugin)
 {
 
-  if (!gst_element_register (plugin, "gtkosxvideosink",
-          GST_RANK_PRIMARY, GTK_TYPE_OSX_VIDEO_SINK))
+  if (!gst_element_register (plugin, "igeosxvideosink",
+          GST_RANK_PRIMARY, IGE_TYPE_OSX_VIDEO_SINK))
     return FALSE;
 
-  GST_DEBUG_CATEGORY_INIT (gst_debug_gtk_osx_video_sink, "gtkosxvideosink", 0,
-      "gtkosxvideosink element");
+  GST_DEBUG_CATEGORY_INIT (debug_ige_osx_video_sink, "igeosxvideosink", 0,
+      "igeosxvideosink element");
 
   return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    "gtkosxvideo",
+    "igeosxvideosink",
     "GTK+ OS X native video output plugin",
-    plugin_init, VERSION, "LGPL", "GTK+ OS X video sink", "Unknown origin")
+    plugin_init, VERSION, "LGPL", "GTK+ OS X video sink", "http://developer.imendio.com")

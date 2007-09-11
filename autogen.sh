@@ -14,7 +14,7 @@ test -z "$srcdir" && srcdir=.
 
 ORIGDIR=`pwd`
 cd $srcdir
-PROJECT=gtk-osx-video-sink
+PROJECT=ige-osx-video-sink
 TEST_TYPE=-f
 FILE=src/test.c
 CONFIGURE=configure.ac

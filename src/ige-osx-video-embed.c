@@ -1,15 +1,16 @@
 #include <config.h>
+#include <gtk/gtk.h>
 
-#include "gtk-osx-video-embed.h"
+#include "ige-osx-video-embed.h"
 
 GType
-gtk_osx_video_embed_get_type (void)
+ige_osx_video_embed_get_type (void)
 {
         static GType embed_type = 0;
 
         if (!embed_type) {
                 const GTypeInfo embed_info = {
-                        sizeof (GtkOSXVideoEmbedIface),
+                        sizeof (IgeOSXVideoEmbedIface),
                         NULL,
                         NULL,
                         NULL,
@@ -21,7 +22,7 @@ gtk_osx_video_embed_get_type (void)
                 };
 
                 embed_type = g_type_register_static (G_TYPE_INTERFACE,
-                                                     "GtkOSXVideoEmbed", &embed_info, 0);
+                                                     "IgeOSXVideoEmbed", &embed_info, 0);
                 g_type_interface_add_prerequisite (embed_type, G_TYPE_OBJECT);
                 /*g_type_interface_add_prerequisite (embed_type, GST_VIDEO_SINK);*/
         }
@@ -30,13 +31,13 @@ gtk_osx_video_embed_get_type (void)
 }
 
 void
-gtk_osx_video_embed_set_widget (GtkOSXVideoEmbed *embed,
+ige_osx_video_embed_set_widget (IgeOSXVideoEmbed *embed,
                                 GtkWidget        *widget)
 {
-        g_return_if_fail (GTK_IS_OSX_VIDEO_EMBED (embed));
+        g_return_if_fail (IGE_IS_OSX_VIDEO_EMBED (embed));
         g_return_if_fail (widget == NULL || GTK_IS_WIDGET (widget));
 
-        if (GTK_OSX_VIDEO_EMBED_GET_IFACE (embed)->set_widget) {
-                GTK_OSX_VIDEO_EMBED_GET_IFACE (embed)->set_widget (embed, widget);
+        if (IGE_OSX_VIDEO_EMBED_GET_IFACE (embed)->set_widget) {
+                IGE_OSX_VIDEO_EMBED_GET_IFACE (embed)->set_widget (embed, widget);
         }
 }

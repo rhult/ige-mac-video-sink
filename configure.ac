@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.52)
  
-AC_INIT(gtk-osx-video-sink, 0.1)
+AC_INIT(ige-osx-video-sink, 0.1)
 AC_CONFIG_SRCDIR(src/test.c)
 AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
 
@@ -52,7 +52,7 @@ AC_OUTPUT([
 	Makefile 
 	src/Makefile
 	data/Makefile
-        data/gtk-osx-video-embed.pc
+        data/ige-osx-video-embed.pc
 ])
 
 echo
