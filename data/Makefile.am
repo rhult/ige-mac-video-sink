@@ -1,4 +1,4 @@
-EXTRA_DIST = gtk-osx-video-embed.pc.in
+EXTRA_DIST = ige-osx-video-embed.pc.in
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = gtk-osx-video-embed.pc
+pkgconfig_DATA = ige-osx-video-embed.pc
