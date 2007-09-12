@@ -1,9 +1,6 @@
 /* GTK+ OS X video sink
  *
- * Copyright ....
- *
- * Builds heavily on osxvideosink with:
- * Copyright (C) 2004-6 Zaheer Abbas Merali <zaheerabbas at merali dot org>
+ * Copyright (C) 2007 ....
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public

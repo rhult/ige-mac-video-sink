@@ -93,6 +93,9 @@ main (int argc, char **argv)
         vbox = gtk_vbox_new (FALSE, 6);
         gtk_container_add (GTK_CONTAINER (window), vbox);
         gtk_container_set_border_width (GTK_CONTAINER (window), 12);
+        g_signal_connect (window, 
+                          "destroy",
+                          G_CALLBACK (gtk_main_quit), NULL);
 
         black.red = 0;
         black.green = 0;
@@ -108,7 +111,7 @@ main (int argc, char **argv)
 
         area = gtk_drawing_area_new ();
         gtk_box_pack_start (GTK_BOX (vbox), area, TRUE, TRUE, 0);
-        gtk_widget_set_size_request (area, 320, 240);
+        gtk_widget_set_size_request (area, 520, 240);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
         widget = gtk_button_new_from_stock (GTK_STOCK_STOP);
