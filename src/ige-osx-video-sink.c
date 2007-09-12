@@ -8,7 +8,7 @@
  * Which also has the comment: "inspiration gained from looking at
  * source of osx video out of xine and vlc and is reflected in the
  * code"
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -118,7 +118,7 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
          * for big buffers?
          */
         if (sink->texture_buffer) {
-                sink->texture_buffer = g_realloc (sink->texture_buffer, 
+                sink->texture_buffer = g_realloc (sink->texture_buffer,
                                                   sink->width * sink->height * 3);
         } else {
                 sink->texture_buffer = g_malloc0 (sink->width * sink->height * 3);
@@ -131,12 +131,12 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 
         glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
         glPixelStorei (GL_UNPACK_ROW_LENGTH, sink->width);
-  
+
         glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture);
 
         /* Use VRAM texturing */
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
-                         GL_TEXTURE_STORAGE_HINT_APPLE, 
+                         GL_TEXTURE_STORAGE_HINT_APPLE,
                          GL_STORAGE_CACHED_APPLE);
 
         /* Don't copy the texture data, use our buffer. */
@@ -158,8 +158,8 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         //glPixelStorei (GL_UNPACK_ROW_LENGTH, 0); //WHY?
 
         glTexImage2D (GL_TEXTURE_RECTANGLE_EXT, 0, GL_RGBA,
-                      sink->width, sink->height, 0, 
-                      GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE, 
+                      sink->width, sink->height, 0,
+                      GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE,
                       sink->texture_buffer);
 
         sink->init_done = TRUE;
@@ -250,9 +250,7 @@ osx_video_sink_display_texture (IgeOSXVideoSink *sink)
                 return;
         }
 
-        /* Avoid warnings by not trying to draw on a non-zero sized
-         * view.
-         */
+        /* Avoid warnings by not trying to draw on a zero size view. */
         if (sink->widget->allocation.width <= 0 ||
             sink->widget->allocation.height <= 0) {
                 return;
@@ -299,8 +297,8 @@ osx_video_sink_get_context (IgeOSXVideoSink *sink)
                         return NULL;
                 }
 
-                // FIXME: Could also fall back to default format?
-                // format =  [[sink->view class] defaultPixelFormat];
+                /* FIXME: Could also fall back to default format? */
+                /* format =  [[sink->view class] defaultPixelFormat]; */
 
                 context = [[NSOpenGLContext alloc] initWithFormat:format shareContext:nil];
                 sink->gl_context = context;
@@ -342,7 +340,7 @@ osx_video_sink_destroy_context (IgeOSXVideoSink *sink)
 #endif
 
 static gboolean
-osx_video_sink_setcaps (GstBaseSink *bsink, 
+osx_video_sink_setcaps (GstBaseSink *bsink,
                         GstCaps     *caps)
 {
         IgeOSXVideoSink *sink;
@@ -405,7 +403,7 @@ osx_video_sink_change_state (GstElement     *element,
 
         sink = IGE_OSX_VIDEO_SINK (element);
 
-        GST_DEBUG_OBJECT (sink, "%s => %s", 
+        GST_DEBUG_OBJECT (sink, "%s => %s",
                           gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
                           gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
@@ -460,7 +458,7 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
-                /* Do we need to do anything here really? */ 
+                /* Do we need to do anything here really? */
                 if (sink->toplevel) {
                         gtk_widget_destroy (sink->toplevel);
                         sink->toplevel = NULL;
@@ -473,7 +471,7 @@ osx_video_sink_change_state (GstElement     *element,
 }
 
 static GstFlowReturn
-osx_video_sink_show_frame (GstBaseSink *bsink, 
+osx_video_sink_show_frame (GstBaseSink *bsink,
                            GstBuffer   *buf)
 {
         IgeOSXVideoSink *sink;
@@ -543,19 +541,42 @@ ige_osx_video_sink_init (IgeOSXVideoSink *sink)
 }
 
 static void
+osx_video_sink_set_viewport (IgeOSXVideoSink *sink,
+                             gint             width,
+                             gint             height)
+{
+        gdouble in_f;
+        gdouble out_f;
+
+        in_f = (gdouble) GST_VIDEO_SINK_HEIGHT (sink) / (gdouble) GST_VIDEO_SINK_WIDTH (sink);
+        out_f = (gdouble) height / (gdouble) width;
+
+        /* Keep aspect ratio. */
+        if (in_f < out_f) {
+                glViewport (0, 0,
+                            width,
+                            width * in_f);
+        } else {
+                glViewport (0, 0,
+                            height / in_f,
+                            height);
+        }
+
+        [sink->gl_context makeCurrentContext];
+        [sink->gl_context update];
+}
+
+static void
 osx_video_sink_size_allocate_cb (GtkWidget       *widget,
                                  GtkAllocation   *allocation,
                                  IgeOSXVideoSink *sink)
 {
-        sink->init_done = FALSE;
-
-        sink->f_x = allocation->width / sink->width;
-        sink->f_y = allocation->height / sink->height;
-
-        osx_video_sink_init_texture (sink);
+        osx_video_sink_set_viewport (sink,
+                                     allocation->width,
+                                     allocation->height);
 }
 
-// add teardown too...
+/* FIXME: Add teardown too. */
 static void
 osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
 {
@@ -566,7 +587,7 @@ osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_set_widget (IgeOSXVideoEmbed *embed, 
+osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                            GtkWidget        *widget)
 {
         IgeOSXVideoSink *sink;
@@ -655,7 +676,7 @@ ige_osx_video_sink_get_type (void)
                         0,
                         (GInstanceInitFunc) ige_osx_video_sink_init,
                 };
-    
+
                 const GInterfaceInfo embed_info = {
                         (GInterfaceInitFunc) ige_osx_video_embed_iface_init,
                         NULL,
