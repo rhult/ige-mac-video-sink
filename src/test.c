@@ -35,10 +35,13 @@ add_control_button (GtkWidget   *box,
                     GCallback    callback,
                     gpointer     user_data)
 {
+        GtkWidget *image;
         GtkWidget *button;
         GdkColor   blue = { 0, 0x5555, 0x9898, 0xd7d7 };
 
-        button = gtk_button_new_from_stock (stock);
+        image = gtk_image_new_from_stock (stock, GTK_ICON_SIZE_BUTTON);
+        button = gtk_button_new ();
+        gtk_container_add (GTK_CONTAINER (button), image);
 
         gtk_widget_modify_bg (button, GTK_STATE_NORMAL, &blue);
         gtk_widget_modify_bg (button, GTK_STATE_PRELIGHT, &blue);
@@ -128,7 +131,7 @@ main (int argc, char **argv)
 
         area = gtk_drawing_area_new ();
         gtk_box_pack_start (GTK_BOX (main_vbox), area, TRUE, TRUE, 0);
-        gtk_widget_set_size_request (area, 520, 240);
+        gtk_widget_set_size_request (area, 320, 240);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
         /* FIXME: Don't know if this makes any difference. */
@@ -143,12 +146,14 @@ main (int argc, char **argv)
                                    GTK_BUTTONBOX_CENTER);
         gtk_box_pack_start (GTK_BOX (main_vbox), control_hbox, FALSE, FALSE, 0);
 
-        add_control_button (control_hbox, GTK_STOCK_MEDIA_PREVIOUS, NULL, NULL);
-        add_control_button (control_hbox, GTK_STOCK_MEDIA_STOP, 
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_PREVIOUS,
+                            NULL, NULL);
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_STOP,
                             G_CALLBACK (stop_cb), pipeline);
-        add_control_button (control_hbox, GTK_STOCK_MEDIA_PLAY, 
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_PLAY,
                             G_CALLBACK (play_cb), pipeline);
-        add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT, NULL, NULL);
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT,
+                            NULL, NULL);
 
         gtk_widget_show_all (window);
 
