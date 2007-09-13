@@ -3,33 +3,6 @@
 
 #include "ige-osx-video-embed.h"
 
-static void
-bus_callback (GstBus *bus, GstMessage *message, gpointer data)
-{
-        gchar       *message_str;
-        const gchar *message_name;
-        GError      *error;
-        
-        if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
-                gst_message_parse_error (message, &error, &message_str);
-                g_print ("GST error: %s\n", message_str);
-                g_free (error);
-                g_free (message_str);
-        }
-        
-        if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_WARNING) {
-                gst_message_parse_warning (message, &error, &message_str);
-                g_warning ("GST warning: %s\n", message_str);
-                g_free (error);
-                g_free (message_str);
-        }
-
-        if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_APPLICATION) {
-                message_name = gst_structure_get_name (gst_message_get_structure (message));
-                g_print ("messag: %s\n", message_name);
-        }
-}
-
 #if 0
 static GstBusSyncReply
 prepare_widget (GstBus      *bus, 
@@ -56,6 +29,54 @@ prepare_widget (GstBus      *bus,
 }
 #endif
 
+static void
+add_control_button (GtkWidget   *box, 
+                    const gchar *stock,
+                    GCallback    callback,
+                    gpointer     user_data)
+{
+        GtkWidget *button;
+        GdkColor   blue = { 0, 0x5555, 0x9898, 0xd7d7 };
+
+        button = gtk_button_new_from_stock (stock);
+
+        gtk_widget_modify_bg (button, GTK_STATE_NORMAL, &blue);
+        gtk_widget_modify_bg (button, GTK_STATE_PRELIGHT, &blue);
+        gtk_widget_modify_bg (button, GTK_STATE_ACTIVE, &blue);
+
+        GTK_WIDGET_UNSET_FLAGS (button, GTK_CAN_FOCUS);
+
+        gtk_box_pack_start (GTK_BOX (box), button, FALSE, FALSE, 0);
+
+        if (callback) {
+                g_signal_connect (button, "clicked", callback, user_data);
+        }
+}
+
+static void
+stop_cb (GtkWidget  *button,
+         GstElement *pipeline)
+{
+        gst_element_set_state (pipeline, GST_STATE_READY);
+}
+
+static void
+play_cb (GtkWidget  *button,
+         GstElement *pipeline)
+{
+        GstState state;
+
+        gst_element_get_state (pipeline, 
+                               &state, NULL,
+                               GST_CLOCK_TIME_NONE);
+
+        if (state != GST_STATE_PLAYING) {
+                gst_element_set_state (pipeline, GST_STATE_PLAYING);
+        } else {
+                gst_element_set_state (pipeline, GST_STATE_PAUSED);
+        }
+}
+
 int
 main (int argc, char **argv)
 {
@@ -63,12 +84,12 @@ main (int argc, char **argv)
         GstElement *playbin;
         GstElement *video_sink;
         GstElement *audio_sink;
-        GstBus     *bus;
         GtkWidget  *window;
-        GtkWidget  *vbox;
+        GtkWidget  *main_vbox;
+        GtkWidget  *control_hbox;
         GtkWidget  *widget;
         GtkWidget  *area;
-        GdkColor    black;
+        GdkColor    black = { 0, 0, 0, 0 };
 
         gst_init (&argc, &argv);
         gtk_init (&argc, &argv);
@@ -90,16 +111,12 @@ main (int argc, char **argv)
 
         /* Setup a test window. */
         window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-        vbox = gtk_vbox_new (FALSE, 6);
-        gtk_container_add (GTK_CONTAINER (window), vbox);
+        main_vbox = gtk_vbox_new (FALSE, 6);
+        gtk_container_add (GTK_CONTAINER (window), main_vbox);
         gtk_container_set_border_width (GTK_CONTAINER (window), 12);
         g_signal_connect (window, 
                           "destroy",
                           G_CALLBACK (gtk_main_quit), NULL);
-
-        black.red = 0;
-        black.green = 0;
-        black.blue = 0;
 
         gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
 
@@ -107,26 +124,35 @@ main (int argc, char **argv)
                                 "Testing GTK+ OS X video sink"
                                 "</span></big>");
         gtk_label_set_use_markup (GTK_LABEL (widget), TRUE);
-        gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
+        gtk_box_pack_start (GTK_BOX (main_vbox), widget, FALSE, FALSE, 0);
 
         area = gtk_drawing_area_new ();
-        gtk_box_pack_start (GTK_BOX (vbox), area, TRUE, TRUE, 0);
+        gtk_box_pack_start (GTK_BOX (main_vbox), area, TRUE, TRUE, 0);
         gtk_widget_set_size_request (area, 520, 240);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
-        widget = gtk_button_new_from_stock (GTK_STOCK_STOP);
-        gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
+        /* FIXME: Don't know if this makes any difference. */
+#if 0
+        gtk_widget_set_double_buffered (area, FALSE);
+        gtk_widget_realize (area);
+        gdk_window_set_back_pixmap (area->window, NULL, TRUE);
+#endif
 
-        // FIXME: set background to NULL? disable double-buffering?
+        control_hbox = gtk_hbutton_box_new ();
+        gtk_button_box_set_layout (GTK_BUTTON_BOX (control_hbox), 
+                                   GTK_BUTTONBOX_CENTER);
+        gtk_box_pack_start (GTK_BOX (main_vbox), control_hbox, FALSE, FALSE, 0);
+
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_PREVIOUS, NULL, NULL);
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_STOP, 
+                            G_CALLBACK (stop_cb), pipeline);
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_PLAY, 
+                            G_CALLBACK (play_cb), pipeline);
+        add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT, NULL, NULL);
 
         gtk_widget_show_all (window);
 
         ige_osx_video_embed_set_widget (IGE_OSX_VIDEO_EMBED (video_sink), area);
-
-        bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
-        gst_bus_add_watch (bus, (GstBusFunc) bus_callback, NULL);
-        //gst_bus_set_sync_handler (bus, (GstBusSyncHandler) prepare_widget, area);
-        gst_object_unref (GST_OBJECT (bus));
 
         gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
