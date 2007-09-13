@@ -75,7 +75,7 @@ enum {
 };
 
 #define IGE_ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
-#define RELEASE_POOL [pool release]
+#define IGE_RELEASE_POOL [pool release]
 
 static GstVideoSinkClass *parent_class = NULL;
 
@@ -94,13 +94,18 @@ struct _IgeOSXVideoSink {
         gulong           texture;
         char            *texture_buffer;
         gboolean         init_done;
+
+        GCond           *toplevel_cond;
+        GMutex          *toplevel_mutex;
 };
 
 struct _IgeOSXVideoSinkClass {
         GstVideoSinkClass parent_class;
 };
 
-static void osx_video_sink_setup_viewport (IgeOSXVideoSink *sink);
+static void osx_video_sink_setup_viewport         (IgeOSXVideoSink *sink);
+static void osx_video_sink_setup_size_handling    (IgeOSXVideoSink *sink);
+static void osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink);
 
 
 /* Call with the context being current. */
@@ -268,7 +273,7 @@ osx_video_sink_display_texture (IgeOSXVideoSink *sink)
                 [view unlockFocus];
         }
 
-        RELEASE_POOL;
+        IGE_RELEASE_POOL;
 }
 
 static void
@@ -294,7 +299,7 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
 
                 if (!format) {
                         GST_WARNING ("Cannot create NSOpenGLPixelFormat");
-                        RELEASE_POOL;
+                        IGE_RELEASE_POOL;
                         return;
                 }
 
@@ -316,7 +321,7 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                          GST_VIDEO_SINK_WIDTH (sink), 
                          GST_VIDEO_SINK_HEIGHT (sink));
 
-                RELEASE_POOL;
+                IGE_RELEASE_POOL;
         }
 }
 
@@ -407,6 +412,42 @@ osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
 }
 #endif
 
+static gboolean
+create_toplevel_idle_cb (IgeOSXVideoSink *sink)
+{
+        GdkColor black;
+
+        g_mutex_lock (sink->toplevel_mutex);
+
+        sink->toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+        gtk_window_set_default_size (GTK_WINDOW (sink->toplevel), 320, 240);
+
+        black.red = 0;
+        black.green = 0;
+        black.blue = 0;
+
+        gtk_widget_modify_bg (sink->toplevel, GTK_STATE_NORMAL, &black);
+
+        sink->widget = gtk_drawing_area_new ();
+        gtk_widget_set_size_request (sink->widget, 100, 100);
+        gtk_container_add (GTK_CONTAINER (sink->toplevel), sink->widget);
+
+        /* Get rid of the default background flickering by before we
+         * draw anything.
+         */
+        gtk_widget_realize (sink->widget);
+        gdk_window_set_back_pixmap (sink->widget->window, NULL, FALSE);
+
+        gtk_widget_show_all (sink->toplevel);
+
+        osx_video_sink_setup_size_handling (sink);
+
+        g_cond_signal (sink->toplevel_cond);
+        g_mutex_unlock (sink->toplevel_mutex);
+
+        return FALSE;
+}
+
 static GstStateChangeReturn
 osx_video_sink_change_state (GstElement     *element,
                              GstStateChange  transition)
@@ -423,23 +464,17 @@ osx_video_sink_change_state (GstElement     *element,
         case GST_STATE_CHANGE_NULL_TO_READY:
                 /* No widget is given to us, create our own toplevel. */
                 if (!sink->widget) {
-                        GtkWidget *toplevel;
-                        GtkWidget *area;
 
-                        toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+                        /* We have to create the window from the main
+                         * thread.
+                         */
+                        g_idle_add ((GSourceFunc) create_toplevel_idle_cb, sink);
 
-                        //gtk_window_set_default_size (GTK_WINDOW (toplevel), 320, 240);
-
-                        area = gtk_drawing_area_new ();
-                        gtk_widget_set_size_request (area, 
-                                                     GST_VIDEO_SINK_WIDTH (sink),
-                                                     GST_VIDEO_SINK_HEIGHT (sink));
-
-                        gtk_container_add (GTK_CONTAINER (toplevel), area);
-                        gtk_widget_show_all (toplevel);
-
-                        sink->toplevel = toplevel;
-                        sink->widget = area;
+                        g_mutex_lock (sink->toplevel_mutex);
+                        while (!sink->toplevel) {
+                                g_cond_wait (sink->toplevel_cond, sink->toplevel_mutex);
+                        }
+                        g_mutex_unlock (sink->toplevel_mutex);
 
                         osx_video_sink_setup_context (sink);
                 } else {
@@ -471,7 +506,7 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
-                /* Do we need to do anything here really? */
+                /* Maybe we should keep the toplevel around here? */
                 if (sink->toplevel) {
                         gtk_widget_destroy (sink->toplevel);
                         sink->toplevel = NULL;
@@ -561,7 +596,6 @@ osx_video_sink_size_allocate_cb (GtkWidget       *widget,
         [sink->gl_context update];
 }
 
-/* FIXME: Add teardown too. */
 static void
 osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
 {
@@ -569,6 +603,15 @@ osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
                           "size-allocate",
                           G_CALLBACK (osx_video_sink_size_allocate_cb),
                           sink);
+}
+
+static void
+osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink)
+{
+        g_signal_handlers_disconnect_by_func (
+                sink->widget,
+                G_CALLBACK (osx_video_sink_size_allocate_cb),
+                sink);
 }
 
 static void
@@ -580,7 +623,7 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
         sink = IGE_OSX_VIDEO_SINK (embed);
 
         if (sink->widget) {
-                /* FIXME: Remove size handling here. */
+                osx_video_sink_teardown_size_handling (sink);
         }
 
         if (sink->toplevel) {
@@ -643,6 +686,8 @@ osx_video_sink_get_property (GObject    *object,
 static void
 ige_osx_video_sink_init (IgeOSXVideoSink *sink)
 {
+        sink->toplevel_cond = g_cond_new ();
+        sink->toplevel_mutex = g_mutex_new ();  
 }
 
 static void
