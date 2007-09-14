@@ -314,9 +314,6 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                 /* Black background. */
                 glClearColor (0.0, 0.0, 0.0, 0.0);
 
-                sink->texture = 0;
-                sink->texture_buffer = NULL;
-
                 GST_LOG ("Size: %dx%d", 
                          GST_VIDEO_SINK_WIDTH (sink), 
                          GST_VIDEO_SINK_HEIGHT (sink));
@@ -343,6 +340,9 @@ osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
 
                 [sink->gl_context release];
                 sink->gl_context = nil;
+
+                g_free (sink->texture_buffer);
+                sink->texture_buffer = NULL;
 
                 IGE_RELEASE_POOL;
         }
@@ -466,7 +466,8 @@ osx_video_sink_change_state (GstElement     *element,
                 if (!sink->widget) {
 
                         /* We have to create the window from the main
-                         * thread.
+                         * thread, add an idle callback and wait for
+                         * it here to complete.
                          */
                         g_idle_add ((GSourceFunc) create_toplevel_idle_cb, sink);
 
@@ -594,6 +595,11 @@ osx_video_sink_size_allocate_cb (GtkWidget       *widget,
         osx_video_sink_setup_viewport (sink);
 
         [sink->gl_context update];
+
+        /* Ensure we draw the latest frame when paused. */
+        if (sink->texture) {
+                osx_video_sink_draw (sink);
+        }
 }
 
 static void
