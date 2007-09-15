@@ -307,7 +307,9 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                         return;
                 }
 
-                /* FIXME: Could also fall back to default format? */
+                /* NOTE: We could also fall back to default format if
+                 * necessary here:
+                 */
                 /* format =  [[sink->view class] defaultPixelFormat]; */
 
                 context = [[NSOpenGLContext alloc] initWithFormat:format shareContext:nil];
@@ -417,16 +419,12 @@ osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
 static gboolean
 create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 {
-        GdkColor black;
+        GdkColor black = { 0, 0, 0, 0 };
 
         g_mutex_lock (sink->toplevel_mutex);
 
         sink->toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
         gtk_window_set_default_size (GTK_WINDOW (sink->toplevel), 320, 240);
-
-        black.red = 0;
-        black.green = 0;
-        black.blue = 0;
 
         gtk_widget_modify_bg (sink->toplevel, GTK_STATE_NORMAL, &black);
 
