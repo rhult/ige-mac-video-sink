@@ -95,6 +95,8 @@ struct _IgeOSXVideoSink {
         char            *texture_buffer;
         gboolean         init_done;
 
+        gboolean         needs_viewport_update;
+
         gboolean         fullscreen;
 
         GCond           *toplevel_cond;
@@ -207,6 +209,10 @@ osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 static void
 osx_video_sink_draw (IgeOSXVideoSink *sink)
 {
+        if (sink->needs_viewport_update) {
+                osx_video_sink_setup_viewport (sink);
+        }
+
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if (sink->init_done) {
@@ -401,8 +407,7 @@ osx_video_sink_set_caps (GstBaseSink *bsink,
 
                 osx_video_sink_init_texture (sink);
 
-                g_print ("set caps\n");
-                osx_video_sink_setup_viewport (sink);
+                sink->needs_viewport_update = TRUE;
         }
 
         return TRUE;
@@ -602,10 +607,9 @@ osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
          * centering the frame.
          */
         gst_video_sink_center_rect (src, dst, &result, TRUE);
-
         glViewport (result.x, result.y, result.w, result.h);
 
-        g_print ("Viewport set to %d %d %d %d\n", result.x, result.y, result.w, result.h);
+        sink->needs_viewport_update = FALSE;
 }
 
 static void
@@ -620,7 +624,6 @@ osx_video_sink_size_allocate_cb (GtkWidget       *widget,
         [sink->gl_context makeCurrentContext];
         [sink->gl_context update];
 
-        g_print ("size_alloc\n");
         osx_video_sink_setup_viewport (sink);
 
         /* Ensure we draw the latest frame when paused. */
@@ -681,7 +684,7 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                 osx_video_sink_setup_context (sink);
                 osx_video_sink_setup_size_handling (sink);
 
-                osx_video_sink_setup_viewport (sink);
+                sink->needs_viewport_update = TRUE;
 
                 g_signal_connect (widget,
                                   "destroy",
