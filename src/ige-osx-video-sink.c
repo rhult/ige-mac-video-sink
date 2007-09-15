@@ -207,10 +207,6 @@ osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 static void
 osx_video_sink_draw (IgeOSXVideoSink *sink)
 {
-        long params[] = { 1 };
-
-        CGLSetParameter (CGLGetCurrentContext (), kCGLCPSwapInterval, params);
-
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if (sink->init_done) {
@@ -296,6 +292,7 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                         NSOpenGLPFAWindow,
                         0
                 };
+                long parm = 1;
 
                 IGE_ALLOC_POOL;
 
@@ -316,6 +313,23 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                 sink->gl_context = context;
 
                 [context makeCurrentContext];
+                [context update];
+
+                /* Use beam-synced updates. */
+                [context setValues:&parm forParameter:NSOpenGLCPSwapInterval];
+
+                /* Disable anything we don't need that might slow
+                 * things down.
+                 */
+                glDisable (GL_ALPHA_TEST);
+                glDisable (GL_DEPTH_TEST);
+                glDisable (GL_SCISSOR_TEST);
+                glDisable (GL_BLEND);
+                glDisable (GL_DITHER);
+                glDisable (GL_CULL_FACE);
+                glDepthMask (GL_FALSE);
+                glStencilMask (0);
+                glHint (GL_TRANSFORM_HINT_APPLE, GL_FASTEST);
 
                 /* Black background. */
                 glClearColor (0.0, 0.0, 0.0, 0.0);
@@ -383,12 +397,12 @@ osx_video_sink_set_caps (GstBaseSink *bsink,
                 GST_VIDEO_SINK_HEIGHT (sink) = video_height;
 
                 [sink->gl_context makeCurrentContext];
+                [sink->gl_context update];
+
+                osx_video_sink_init_texture (sink);
 
                 g_print ("set caps\n");
-                osx_video_sink_init_texture (sink);
                 osx_video_sink_setup_viewport (sink);
-
-                [sink->gl_context update];
         }
 
         return TRUE;
@@ -489,6 +503,8 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_PAUSED:
+                GST_VIDEO_SINK_WIDTH (sink) = 0;
+                GST_VIDEO_SINK_HEIGHT (sink) = 0;
                 break;
 
         case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -564,12 +580,14 @@ osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
         dst.w = out_width;
         dst.h = out_height;
 
-        /* Scale while keeping the aspect ratio and centering the
-         * frame.
+        /* Scale the viewport while keeping the aspect ratio and
+         * centering the frame.
          */
         gst_video_sink_center_rect (src, dst, &result, TRUE);
 
         glViewport (result.x, result.y, result.w, result.h);
+
+        g_print ("Viewport set to %d %d %d %d\n", result.x, result.y, result.w, result.h);
 }
 
 static void
@@ -582,11 +600,10 @@ osx_video_sink_size_allocate_cb (GtkWidget       *widget,
         }
 
         [sink->gl_context makeCurrentContext];
+        [sink->gl_context update];
 
         g_print ("size_alloc\n");
         osx_video_sink_setup_viewport (sink);
-
-        [sink->gl_context update];
 
         /* Ensure we draw the latest frame when paused. */
         if (sink->texture) {
@@ -645,6 +662,7 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                 sink->widget = widget;
                 osx_video_sink_setup_context (sink);
                 osx_video_sink_setup_size_handling (sink);
+
                 osx_video_sink_setup_viewport (sink);
 
                 g_signal_connect (widget,
