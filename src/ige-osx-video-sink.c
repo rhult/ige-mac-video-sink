@@ -84,6 +84,7 @@ struct _IgeOSXVideoSink {
 
         /* The GtkWidget to draw on. */
         GtkWidget       *widget;
+        NSView          *view;
 
         /* When no window is given us, we create our own toplevel window
          * with a drawing area to get an NSView from.
@@ -252,9 +253,7 @@ osx_video_sink_draw (IgeOSXVideoSink *sink)
 static void
 osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 {
-        NSView *view;
-
-        if (!sink->widget || !sink->widget->window) {
+        if (!sink->widget || !sink->view) {
                 return;
         }
 
@@ -266,17 +265,15 @@ osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 
         IGE_ALLOC_POOL;
 
-        view = gdk_quartz_window_get_nsview (sink->widget->window);
-
-        if ([view lockFocusIfCanDraw]) {
-                [sink->gl_context setView:view];
+        if ([sink->view lockFocusIfCanDraw]) {
+                [sink->gl_context setView:sink->view];
 
                 [sink->gl_context makeCurrentContext];
 
                 osx_video_sink_draw (sink);
                 osx_video_sink_reload_texture (sink);
 
-                [view unlockFocus];
+                [sink->view unlockFocus];
         }
 
         IGE_RELEASE_POOL;
@@ -354,11 +351,8 @@ osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
         if (sink->gl_context) {
                 IGE_ALLOC_POOL;
 
-                if (sink->widget && sink->widget->window) {
-                        NSView *view;
-
-                        view = gdk_quartz_window_get_nsview (sink->widget->window);
-                        if ([sink->gl_context view] == view) {
+                if (sink->view) {
+                        if ([sink->gl_context view] == sink->view) {
                                 [sink->gl_context clearDrawable];
                         }
                 }
@@ -442,10 +436,23 @@ osx_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
         if (sink->toplevel) {
                 sink->toplevel = NULL;
                 sink->widget = NULL;
+                sink->view = NULL;
                 sink->init_done = FALSE;
 
                 osx_video_sink_teardown_context (sink);
         }
+}
+
+static void
+osx_video_sink_widget_realize_cb (GtkWidget       *widget,
+                                  IgeOSXVideoSink *sink)
+{
+        /* Get rid of the default background flickering by before we
+         * draw anything.
+         */
+        gdk_window_set_back_pixmap (widget->window, NULL, FALSE);
+
+        sink->view = gdk_quartz_window_get_nsview (widget->window);
 }
 
 static gboolean
@@ -469,11 +476,10 @@ create_toplevel_idle_cb (IgeOSXVideoSink *sink)
         gtk_widget_set_size_request (sink->widget, 100, 100);
         gtk_container_add (GTK_CONTAINER (sink->toplevel), sink->widget);
 
-        /* Get rid of the default background flickering by before we
-         * draw anything.
-         */
-        gtk_widget_realize (sink->widget);
-        gdk_window_set_back_pixmap (sink->widget->window, NULL, FALSE);
+        g_signal_connect (sink->widget,
+                          "realize",
+                          G_CALLBACK (osx_video_sink_widget_realize_cb),
+                          sink);
 
         gtk_widget_show_all (sink->toplevel);
 
@@ -544,6 +550,8 @@ osx_video_sink_change_state (GstElement     *element,
                         gtk_widget_destroy (sink->toplevel);
                         sink->toplevel = NULL;
                         sink->widget = NULL;
+                        sink->view = NULL;
+
                         osx_video_sink_teardown_context (sink);
                 }
                 break;
@@ -655,6 +663,7 @@ osx_video_sink_widget_destroy_cb (GtkWidget       *widget,
                                   IgeOSXVideoSink *sink)
 {
         sink->widget = NULL;
+        sink->view = NULL;
         sink->init_done = FALSE;
 
         osx_video_sink_teardown_context (sink);
@@ -670,6 +679,11 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
 
         if (sink->widget) {
                 osx_video_sink_teardown_size_handling (sink);
+
+                g_signal_handlers_disconnect_by_func (
+                        sink->widget,
+                        G_CALLBACK (osx_video_sink_widget_realize_cb),
+                        sink);
         }
 
         if (sink->toplevel) {
@@ -678,6 +692,7 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
         }
 
         sink->widget = NULL;
+        sink->view = NULL;
 
         if (widget) {
                 sink->widget = widget;
@@ -690,6 +705,15 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                                   "destroy",
                                   G_CALLBACK (osx_video_sink_widget_destroy_cb),
                                   sink);
+
+                if (GTK_WIDGET_REALIZED (widget)) {
+                        osx_video_sink_widget_realize_cb (widget, sink);
+                } else {
+                        g_signal_connect (widget,
+                                          "realize",
+                                          G_CALLBACK (osx_video_sink_widget_realize_cb),
+                                          sink);
+                }
         }
 }
 

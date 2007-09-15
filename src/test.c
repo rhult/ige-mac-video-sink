@@ -134,13 +134,6 @@ main (int argc, char **argv)
         gtk_widget_set_size_request (area, 320, 240);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
-        /* FIXME: Don't know if this makes any difference. */
-#if 0
-        gtk_widget_set_double_buffered (area, FALSE);
-        gtk_widget_realize (area);
-        gdk_window_set_back_pixmap (area->window, NULL, TRUE);
-#endif
-
         control_hbox = gtk_hbutton_box_new ();
         gtk_button_box_set_layout (GTK_BUTTON_BOX (control_hbox), 
                                    GTK_BUTTONBOX_CENTER);
@@ -155,9 +148,9 @@ main (int argc, char **argv)
         add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT,
                             NULL, NULL);
 
-        gtk_widget_show_all (window);
-
         ige_osx_video_embed_set_widget (IGE_OSX_VIDEO_EMBED (video_sink), area);
+
+        gtk_widget_show_all (window);
 
         gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
