@@ -143,6 +143,10 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 
         glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture);
 
+        /* Note: those two optimizations only actually help if the
+         * texture's width and height is a power of 2:
+         */
+
         /* Use VRAM texturing. */
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
                          GL_TEXTURE_STORAGE_HINT_APPLE,
@@ -157,12 +161,10 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT, 
                          GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        /* FIXME: Needed? */
-        /*glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
+        glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
                          GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT,
                          GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        */
 
         glTexImage2D (GL_TEXTURE_RECTANGLE_EXT, 0, GL_RGBA,
                       width, height, 0,
@@ -322,7 +324,6 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
         }
 }
 
-#if 0
 static void
 osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
 {
@@ -347,7 +348,6 @@ osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
                 IGE_RELEASE_POOL;
         }
 }
-#endif
 
 static gboolean
 osx_video_sink_set_caps (GstBaseSink *bsink,
@@ -621,6 +621,16 @@ osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink)
 }
 
 static void
+osx_video_sink_widget_destroy_cb (GtkWidget       *widget,
+                                  IgeOSXVideoSink *sink)
+{
+        sink->widget = NULL;
+        sink->init_done = FALSE;
+
+        osx_video_sink_teardown_context (sink);
+}
+
+static void
 osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                            GtkWidget        *widget)
 {
@@ -643,9 +653,12 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
                 sink->widget = widget;
                 osx_video_sink_setup_context (sink);
                 osx_video_sink_setup_size_handling (sink);
-
-                g_print ("set widget\n");
                 osx_video_sink_setup_viewport (sink);
+
+                g_signal_connect (widget,
+                                  "destroy",
+                                  G_CALLBACK (osx_video_sink_widget_destroy_cb),
+                                  sink);
         }
 }
 
