@@ -23,7 +23,7 @@ libigeosxvideoembed_la_CFLAGS = $(SINK_CFLAGS)
 libigeosxvideoembed_la_LIBADD =  $(SINK_LIBS)
 
 # Test application
-noinst_PROGRAMS = test
-test_SOURCES = test.c
-test_CFLAGS = $(TEST_CFLAGS)
-test_LDADD =  $(TEST_LIBS) libigeosxvideoembed.la
+noinst_PROGRAMS = test-sink
+test_sink_SOURCES = test-sink.c
+test_sink_CFLAGS = $(TEST_CFLAGS)
+test_sink_LDADD =  $(TEST_LIBS) libigeosxvideoembed.la

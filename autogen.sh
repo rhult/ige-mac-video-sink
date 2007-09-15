@@ -16,7 +16,7 @@ ORIGDIR=`pwd`
 cd $srcdir
 PROJECT=ige-osx-video-sink
 TEST_TYPE=-f
-FILE=src/test.c
+FILE=src/test-sink.c
 CONFIGURE=configure.ac
 
 DIE=0
