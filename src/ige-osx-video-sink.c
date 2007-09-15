@@ -430,6 +430,19 @@ osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
 }
 #endif
 
+static void
+osx_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
+                                    IgeOSXVideoSink *sink)
+{
+        if (sink->toplevel) {
+                sink->toplevel = NULL;
+                sink->widget = NULL;
+                sink->init_done = FALSE;
+
+                osx_video_sink_teardown_context (sink);
+        }
+}
+
 static gboolean
 create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 {
@@ -439,6 +452,11 @@ create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 
         sink->toplevel = gtk_window_new (GTK_WINDOW_TOPLEVEL);
         gtk_window_set_default_size (GTK_WINDOW (sink->toplevel), 320, 240);
+
+        g_signal_connect (sink->toplevel,
+                          "destroy",
+                          G_CALLBACK (osx_video_sink_toplevel_destroy_cb),
+                          sink);
 
         gtk_widget_modify_bg (sink->toplevel, GTK_STATE_NORMAL, &black);
 
