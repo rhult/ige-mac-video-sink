@@ -95,6 +95,8 @@ struct _IgeOSXVideoSink {
         char            *texture_buffer;
         gboolean         init_done;
 
+        gboolean         fullscreen;
+
         GCond           *toplevel_cond;
         GMutex          *toplevel_mutex;
 };
@@ -489,10 +491,6 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_PAUSED:
-                GST_DEBUG ("ready to paused");
-                if (sink->widget)
-                        ;//osx_video_sink_clear (sink);
-
                 break;
 
         case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -502,16 +500,14 @@ osx_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_PAUSED_TO_READY:
-                GST_VIDEO_SINK_WIDTH (sink) = 0;
-                GST_VIDEO_SINK_HEIGHT (sink) = 0;
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
-                /* Maybe we should keep the toplevel around here? */
-                if (sink->toplevel) {
+                 if (sink->toplevel) {
                         gtk_widget_destroy (sink->toplevel);
                         sink->toplevel = NULL;
                         sink->widget = NULL;
+                        osx_video_sink_teardown_context (sink);
                 }
                 break;
         }
@@ -529,6 +525,14 @@ osx_video_sink_show_frame (GstBaseSink *bsink,
 
         sink = IGE_OSX_VIDEO_SINK (bsink);
 
+        if (!sink->init_done) {
+                return GST_FLOW_UNEXPECTED;
+        }
+
+        if (!sink->texture_buffer) {
+                return GST_FLOW_ERROR;
+        }
+
         memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
         osx_video_sink_display_texture (sink);
 
@@ -539,12 +543,13 @@ osx_video_sink_show_frame (GstBaseSink *bsink,
 static void
 osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
 {
-        gint    in_width;
-        gint    in_height;
-        gint    out_width;
-        gint    out_height;
-        gdouble in_f;
-        gdouble out_f;
+        gint              in_width;
+        gint              in_height;
+        gint              out_width;
+        gint              out_height;
+        GstVideoRectangle src;
+        GstVideoRectangle dst;
+        GstVideoRectangle result;
 
         if (!sink->widget) {
                 return;
@@ -556,28 +561,17 @@ osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
         out_width = sink->widget->allocation.width;
         out_height = sink->widget->allocation.height;
 
-        g_print ("set viewport, in: %dx%d, out: %dx%d\n", 
-                 in_width, in_height,
-                 out_width, out_height);
+        src.w = in_width;
+        src.h = in_height;
+        dst.w = out_width;
+        dst.h = out_height;
 
-        if (in_width <= 0 || in_height <= 0 ||
-            out_width <= 0 || out_height <= 0) {
-                return;
-        }
+        /* Scale while keeping the aspect ratio and centering the
+         * frame.
+         */
+        gst_video_sink_center_rect (src, dst, &result, TRUE);
 
-        in_f = (gdouble) in_height / (gdouble) in_width;
-        out_f = (gdouble) out_height / (gdouble) out_width;
-
-        /* Keep aspect ratio. */
-        if (in_f < out_f) {
-                glViewport (0, 0,
-                            out_width,
-                            out_width * in_f);
-        } else {
-                glViewport (0, 0,
-                            out_height / in_f,
-                            out_height);
-        }
+        glViewport (result.x, result.y, result.w, result.h);
 }
 
 static void
@@ -674,7 +668,7 @@ osx_video_sink_set_property (GObject      *object,
 
         switch (prop_id) {
         case ARG_FULLSCREEN:
-                //sink->fullscreen = g_value_get_boolean (value);
+                sink->fullscreen = g_value_get_boolean (value);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -694,7 +688,7 @@ osx_video_sink_get_property (GObject    *object,
 
         switch (prop_id) {
         case ARG_FULLSCREEN:
-                //g_value_set_boolean (value, sink->fullscreen);
+                g_value_set_boolean (value, sink->fullscreen);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
