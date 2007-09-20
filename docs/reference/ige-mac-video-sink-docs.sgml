@@ -8,9 +8,9 @@
   <bookinfo>
     <title>IGE Mac Video Sink Reference Manual</title>
     <releaseinfo>
-      for IGE Mac Video Sink &version;.
-      The latest version of this documentation can be found on-line at
-      <ulink role="online-location" url="http://.../ige-mac-video-sink/index.html">N/A</ulink>.
+For IGE Mac Video Sink &version; - the latest version of this
+documentation can be found on-line at <ulink role="online-location"
+url="http://.../ige-mac-video-sink/index.html">N/A</ulink>.
     </releaseinfo>
   </bookinfo>
 
@@ -18,22 +18,32 @@
     <title>Introduction</title>
     <para>
 The IGE Mac Video sink is a GStreamer video output element that is
-designed to be used with the native GTK+ port on OS X. It is released
+designed to be used with the native GTK+ port on Mac OS X. It is released
 under the GNU Library General Public License.
     </para>
 
     <para>
-The integration with GTK+ is done by an interface called
-<link linkend="ige-mac-video-sink-IGEMacVideoEmbed">IGEMacVideoEmbed</link>, which the sink implements. In order to use the
-sink, your application needs to link against the interface. The
-library uses pkg-config to get the right compiler and linker flags,
-and building a simple test might look like this:
+The integration with GTK+ is done through an interface called <link
+linkend="ige-mac-video-sink-IGEMacVideoEmbed">IGEMacVideoEmbed</link>,
+which the sink implements. In order to use the sink, your application
+needs to link against the interface. The library uses <ulink
+url="http://pkg-config.freedesktop.org/wiki/">pkg-config</ulink> to
+get the right compiler and linker flags, and building a simple test
+might look like this:
 
       <example>
-        <title>Building using pkg-config</title>
+        <title>Building using the pkg-config directly with the compiler</title>
         <programlisting>
-  gcc -g -O2 -Wall -o test `pkg-config --cflags --libs gtk+-2.0 ige-mac-video-embed` test.c
-        </programlisting>
+gcc -g -O2 -Wall -o test `pkg-config --cflags --libs ige-mac-video-embed` test.c</programlisting>
+      </example>
+
+For projects using autotools (autoconf and automake), the
+corresponding configure check would be:
+
+      <example>
+        <title>Building using autotools</title>
+        <programlisting>
+PKG_CONFIG_CHECK([ige-mac-video-embed])</programlisting>
       </example>
 
 The library has a very small API, used to setup the widget that the
@@ -42,6 +52,9 @@ sink should diplay the video output on. An example follows:
         <example>
           <title>A simple pipeline with an IGEMacVideoSink</title>
         <programlisting>
+int
+main (int argc, char *argv[])
+{
   GstElement *pipeline;
   GstElement *playbin;
   GstElement *video_sink;
@@ -92,7 +105,9 @@ sink should diplay the video output on. An example follows:
 
   /* Run the main loop. */
   gtk_main ();
-        </programlisting>
+
+  return 0;
+}</programlisting>
       </example>
     </para>
 

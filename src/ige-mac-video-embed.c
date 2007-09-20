@@ -19,6 +19,18 @@
  *
  */
 
+/**
+ * SECTION:video-embed
+ * @title: IgeMacVideoEmbed
+ * @short_description: integrating a GStreamer sink with a GTK+ widget
+ *
+ * #IgeMacVideoEmbed is an interface that can be implemented by
+ * GStreamer video sinks to display the output on a GTK+ widget.
+ * 
+ * In particular, the IGEMacVideoSink implements this interface.
+ *
+ **/
+
 #include <config.h>
 #include <gtk/gtk.h>
 
@@ -45,6 +57,8 @@ ige_mac_video_embed_get_type (void)
                 embed_type = g_type_register_static (G_TYPE_INTERFACE,
                                                      "IgeMacVideoEmbed", &embed_info, 0);
                 g_type_interface_add_prerequisite (embed_type, G_TYPE_OBJECT);
+
+                /* Note: in theory we should require this type. */
                 /*g_type_interface_add_prerequisite (embed_type, GST_VIDEO_SINK);*/
         }
 
@@ -60,9 +74,9 @@ ige_mac_video_embed_get_type (void)
  * widget's background will currently be set to black to match the
  * black background color used by the sink.
  *
- * The widget passed should be considered owned by the sink with
- * regards to drawing to it, so no drawing should be done after
- * setting it as embed widget.
+ * The widget should be considered owned by the sink with regards to
+ * drawing to it, so no drawing should be done after setting it as
+ * embed widget.
  *
  * The video output will be scaled to fit the widget, while keeping
  * the aspect ratio. The image it centered vertically and

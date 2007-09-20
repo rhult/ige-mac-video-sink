@@ -31,6 +31,11 @@ G_BEGIN_DECLS
 #define IGE_IS_MAC_VIDEO_EMBED(obj)  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), IGE_TYPE_MAC_VIDEO_EMBED))
 #define IGE_MAC_VIDEO_EMBED_GET_IFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), IGE_TYPE_MAC_VIDEO_EMBED, IgeMacVideoEmbedIface))
 
+/**
+ * IgeMacVideoEmbed:
+ *
+ * Opque struct that represents the embed interface instance
+ **/
 typedef struct _IgeMacVideoEmbed      IgeMacVideoEmbed;
 typedef struct _IgeMacVideoEmbedIface IgeMacVideoEmbedIface;
 
