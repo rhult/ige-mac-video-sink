@@ -20,6 +20,8 @@ AC_HEADER_STDC
 
 AM_PATH_GLIB_2_0
 
+GTK_DOC_CHECK(1.7)
+
 dnl Defined in acinclude.m4
 IMENDIO_COMPILE_WARNINGS
 
@@ -30,10 +32,15 @@ dnl | Pkgconfig checks |---------------------------------------
 dnl  ------------------
 
 PKG_CHECK_MODULES(SINK, [
-        glib-2.0 >= 2.12
+        glib-2.0 >= 2.12 gobject-2.0
 	gtk+-2.0 >= 2.11
         gstreamer-0.10
         gstreamer-plugins-base-0.10
+])
+
+PKG_CHECK_MODULES(EMBED, [
+        glib-2.0 >= 2.12 gobject-2.0
+	gtk+-2.0 >= 2.11
 ])
 
 PKG_CHECK_MODULES(TEST, [
@@ -53,8 +60,13 @@ AC_OUTPUT([
 	src/Makefile
 	data/Makefile
         data/ige-mac-video-embed.pc
+        docs/Makefile
+        docs/reference/Makefile
+        docs/reference/version.xml
 ])
 
 echo
 echo "Prefix                 : $prefix"
+echo
+echo "Type \"make install\" to install ige-mac-video-sink"
 echo

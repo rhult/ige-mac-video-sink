@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+               "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
+<!ENTITY version SYSTEM "version.xml">
+]>
+
+<book id="index" xmlns:xi="http://www.w3.org/2003/XInclude">
+  <bookinfo>
+    <title>IGE Mac Video Sink Reference Manual</title>
+    <releaseinfo>
+      for IGE Mac Video Sink &version;
+      The latest version of this documentation can be found on-line at
+      <ulink role="online-location" url="http://.../ige-mac-video-sink/index.html">N/A</ulink>.
+    </releaseinfo>
+  </bookinfo>
+
+  <chapter id="intro">
+    <title>Introduction</title>
+    <para>
+The IGE Mac Video sink is a GStreamer video sink that is designed to
+be used with the native GTK+ port on OS X. It is released under the
+GNU Library General Public License.
+    </para>
+
+    <para>
+
+The integration with GTK+ is done by an interface called
+#IGEMacVideoEmbed, which the sink implements. In order to use the
+sink, your application needs to link against the interface. The
+library uses pkg-config to get the right compiler and linker flags,
+and building a simple test might look like this:
+
+      <example>
+        <title>Building using pkg-config</title>
+        <programlisting>
+  gcc -g -O2 -Wall -o test `pkg-config --cflags --libs gtk+-2.0 igemacvideoembed` test.c
+        </programlisting>
+      </example>
+
+The library has a very small API, used to setup the widget that the
+sink should diplay the video output on. An example follows:
+
+        <example>
+          <title>A simple pipeline with an IGEMacVideoSink</title>
+        <programlisting>
+  GstElement *pipeline;
+  GstElement *playbin;
+  GstElement *video_sink;
+  GstElement *audio_sink;
+  GtkWidget  *window;
+  GtkWidget  *area;
+
+  gst_init (&amp;argc, &amp;argv);
+  gtk_init (&amp;argc, &amp;argv);
+
+  pipeline = gst_pipeline_new ("pipeline");
+
+  /* Use playbin, with the Mac audio and video sinks. */ 
+  playbin = gst_element_factory_make ("playbin", "playbin");
+  video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
+  audio_sink = gst_element_factory_make ("osxaudiosink", "audio_sink");
+
+  g_object_set (playbin,
+                "video-sink", video_sink,
+                "audio-sink", audio_sink,
+                "uri", "file:///path/to/video.mp4",
+                NULL);
+
+  gst_bin_add (GST_BIN (pipeline), playbin);
+
+  /* Setup a window and a drawing area to display video on. */
+  window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  g_signal_connect (window, 
+                    "destroy",
+                    G_CALLBACK (gtk_main_quit), NULL);
+
+  area = gtk_drawing_area_new ();
+
+  /* Set the smallest acceptable size we want. */
+  gtk_widget_set_size_request (area, 320, 240);
+
+  gtk_container_add (GTK_CONTAINER (window), area);
+
+  /* Setup the drawing area widget as the widget to display the
+   * video on.
+   */
+  ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
+
+  gtk_widget_show_all (window);
+
+  /* Start the video playback. */
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+
+  /* Run the main loop. */
+  gtk_main ();
+        </programlisting>
+      </example>
+    </para>
+
+  </chapter> 
+
+  <chapter>
+    <title>API Reference</title>
+    <xi:include href="xml/video-embed.xml"/>
+  </chapter>
+</book>

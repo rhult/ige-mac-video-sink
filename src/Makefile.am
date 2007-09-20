@@ -22,8 +22,8 @@ libigemacvideoembed_la_SOURCES = 	\
 	ige-mac-video-embed.c		\
 	$(interface_HEADERS)
 
-libigemacvideoembed_la_CFLAGS = $(SINK_CFLAGS)
-libigemacvideoembed_la_LIBADD =  $(SINK_LIBS)
+libigemacvideoembed_la_CFLAGS = $(EMBED_CFLAGS)
+libigemacvideoembed_la_LIBADD =  $(EMBED_LIBS)
 
 # Test application
 noinst_PROGRAMS = test-sink

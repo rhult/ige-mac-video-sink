@@ -51,6 +51,22 @@ ige_mac_video_embed_get_type (void)
         return embed_type;
 }
 
+/**
+ * ige_mac_video_embed_set_widget:
+ * @embed: An #IgeMacVideoEmbed instance
+ * @widget: #GtkWidget to use for video output
+ * 
+ * Sets the widget to use for video output by the video sink. The
+ * widget's background will currently be set to black to match the
+ * black background color used by the sink.
+ *
+ * The widget passed should be considered owned by the sink with
+ * regards to drawing to it, so no drawing should be done after
+ * setting it as embed widget.
+ *
+ * The video output will be scaled to fit the widget, while keeping
+ * the aspect ratio. The image it centered vertically and horiontally.
+ **/
 void
 ige_mac_video_embed_set_widget (IgeMacVideoEmbed *embed,
                                 GtkWidget        *widget)
