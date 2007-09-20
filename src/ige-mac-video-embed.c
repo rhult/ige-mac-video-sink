@@ -65,7 +65,8 @@ ige_mac_video_embed_get_type (void)
  * setting it as embed widget.
  *
  * The video output will be scaled to fit the widget, while keeping
- * the aspect ratio. The image it centered vertically and horiontally.
+ * the aspect ratio. The image it centered vertically and
+ * horizontally.
  **/
 void
 ige_mac_video_embed_set_widget (IgeMacVideoEmbed *embed,
