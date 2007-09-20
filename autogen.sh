@@ -14,9 +14,9 @@ test -z "$srcdir" && srcdir=.
 
 ORIGDIR=`pwd`
 cd $srcdir
-PROJECT=ige-osx-video-sink
+PROJECT=ige-mac-video-sink
 TEST_TYPE=-f
-FILE=src/test-sink.c
+FILE=src/ige-mac-video-sink.c
 CONFIGURE=configure.ac
 
 DIE=0

@@ -1,29 +1,29 @@
 AM_CPPFLAGS = -I$(top_srcdir) $(WARN_CFLAGS)
 
-plugin_LTLIBRARIES = libigeosxvideosink.la
+plugin_LTLIBRARIES = libigemacvideosink.la
 
 # Video sink element
-libigeosxvideosink_la_SOURCES = 	\
-	ige-osx-video-sink.c		\
-	ige-osx-video-sink.h
+libigemacvideosink_la_SOURCES = 	\
+	ige-mac-video-sink.c		\
+	ige-mac-video-sink.h
 
-libigeosxvideosink_la_CFLAGS = $(SINK_CFLAGS) -xobjective-c
-libigeosxvideosink_la_LIBADD =  $(SINK_LIBS) -lgstvideo-0.10 libigeosxvideoembed.la
-libigeosxvideosink_la_LDFLAGS = -module -avoid-version -framework Cocoa -framework OpenGL
+libigemacvideosink_la_CFLAGS = $(SINK_CFLAGS) -xobjective-c
+libigemacvideosink_la_LIBADD =  $(SINK_LIBS) -lgstvideo-0.10 libigemacvideoembed.la
+libigemacvideosink_la_LDFLAGS = -module -avoid-version -framework Cocoa -framework OpenGL
 
 # Embedding interface for the sink element
 interface_includedir = $(includedir)
-lib_LTLIBRARIES = libigeosxvideoembed.la
+lib_LTLIBRARIES = libigemacvideoembed.la
 
-libigeosxvideoembed_la_SOURCES = 	\
-	ige-osx-video-embed.c		\
-	ige-osx-video-embed.h
+libigemacvideoembed_la_SOURCES = 	\
+	ige-mac-video-embed.c		\
+	ige-mac-video-embed.h
 
-libigeosxvideoembed_la_CFLAGS = $(SINK_CFLAGS)
-libigeosxvideoembed_la_LIBADD =  $(SINK_LIBS)
+libigemacvideoembed_la_CFLAGS = $(SINK_CFLAGS)
+libigemacvideoembed_la_LIBADD =  $(SINK_LIBS)
 
 # Test application
 noinst_PROGRAMS = test-sink
 test_sink_SOURCES = test-sink.c
 test_sink_CFLAGS = $(TEST_CFLAGS)
-test_sink_LDADD =  $(TEST_LIBS) libigeosxvideoembed.la
+test_sink_LDADD =  $(TEST_LIBS) libigemacvideoembed.la

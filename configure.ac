@@ -1,8 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.52)
  
-AC_INIT(ige-osx-video-sink, 0.1)
-AC_CONFIG_SRCDIR(src/test-sink.c)
+AC_INIT(ige-mac-video-sink, 0.8)
+AC_CONFIG_SRCDIR(src/ige-mac-video-sink.c)
 AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
 
 AM_MAINTAINER_MODE
@@ -52,7 +52,7 @@ AC_OUTPUT([
 	Makefile 
 	src/Makefile
 	data/Makefile
-        data/ige-osx-video-embed.pc
+        data/ige-mac-video-embed.pc
 ])
 
 echo
