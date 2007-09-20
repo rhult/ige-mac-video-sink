@@ -1,0 +1,36 @@
+<!-- ##### SECTION Title ##### -->
+IGEMacVideoEmbed
+
+<!-- ##### SECTION Short_Description ##### -->
+
+
+<!-- ##### SECTION Long_Description ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### SECTION See_Also ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### SECTION Stability_Level ##### -->
+
+
+<!-- ##### STRUCT IgeMacVideoEmbed ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### FUNCTION ige_mac_video_embed_set_widget ##### -->
+<para>
+
+</para>
+
+@embed: 
+@widget: 
+
+

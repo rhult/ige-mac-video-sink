@@ -19,3 +19,4 @@ compile
 *.la
 *.o
 *.lo
+gtk-doc.make
