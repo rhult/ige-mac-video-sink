@@ -3,9 +3,9 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: gtk-osx-video-embed
-Description: Interface for GStreamer video sink for GTK+ OSX
+Name: ige-mac-video-embed
+Description: Interface for GStreamer video sink for GTK+ Mac
 Requires: gtk+-2.0 gstreamer-0.10 gstreamer-plugins-base-0.10
 Version: @VERSION@
-Libs: -L${libdir} -lgtkosxvideoembed
-Cflags: -I${includedir}/gtkosxvideoembed
+Libs: -L${libdir} -ligemacvideoembed
+Cflags: -I${includedir}/igemacvideoembed
