@@ -8,7 +8,7 @@
   <bookinfo>
     <title>IGE Mac Video Sink Reference Manual</title>
     <releaseinfo>
-      for IGE Mac Video Sink &version;
+      for IGE Mac Video Sink &version;.
       The latest version of this documentation can be found on-line at
       <ulink role="online-location" url="http://.../ige-mac-video-sink/index.html">N/A</ulink>.
     </releaseinfo>
@@ -17,15 +17,14 @@
   <chapter id="intro">
     <title>Introduction</title>
     <para>
-The IGE Mac Video sink is a GStreamer video sink that is designed to
-be used with the native GTK+ port on OS X. It is released under the
-GNU Library General Public License.
+The IGE Mac Video sink is a GStreamer video output element that is
+designed to be used with the native GTK+ port on OS X. It is released
+under the GNU Library General Public License.
     </para>
 
     <para>
-
 The integration with GTK+ is done by an interface called
-#IGEMacVideoEmbed, which the sink implements. In order to use the
+<link linkend="ige-mac-video-sink-IGEMacVideoEmbed">IGEMacVideoEmbed</link>, which the sink implements. In order to use the
 sink, your application needs to link against the interface. The
 library uses pkg-config to get the right compiler and linker flags,
 and building a simple test might look like this:
@@ -33,7 +32,7 @@ and building a simple test might look like this:
       <example>
         <title>Building using pkg-config</title>
         <programlisting>
-  gcc -g -O2 -Wall -o test `pkg-config --cflags --libs gtk+-2.0 igemacvideoembed` test.c
+  gcc -g -O2 -Wall -o test `pkg-config --cflags --libs gtk+-2.0 ige-mac-video-embed` test.c
         </programlisting>
       </example>
 
