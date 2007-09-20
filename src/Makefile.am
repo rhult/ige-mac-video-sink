@@ -12,12 +12,15 @@ libigemacvideosink_la_LIBADD =  $(SINK_LIBS) -lgstvideo-0.10 libigemacvideoembed
 libigemacvideosink_la_LDFLAGS = -module -avoid-version -framework Cocoa -framework OpenGL
 
 # Embedding interface for the sink element
-interface_includedir = $(includedir)
 lib_LTLIBRARIES = libigemacvideoembed.la
+
+interface_includedir = $(includedir)/igemacvideoembed
+interface_include_HEADERS = 			\
+	ige-mac-video-embed.h
 
 libigemacvideoembed_la_SOURCES = 	\
 	ige-mac-video-embed.c		\
-	ige-mac-video-embed.h
+	$(interface_HEADERS)
 
 libigemacvideoembed_la_CFLAGS = $(SINK_CFLAGS)
 libigemacvideoembed_la_LIBADD =  $(SINK_LIBS)
