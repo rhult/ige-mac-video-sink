@@ -74,8 +74,8 @@ main (int argc, char **argv)
 
         pipeline = gst_pipeline_new ("pipeline");
 
+        /* Use playbin, with the Mac audio and video sinks. */ 
         playbin = gst_element_factory_make ("playbin", "playbin");
-
         video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
         audio_sink = gst_element_factory_make ("osxaudiosink", "audio_sink");
 
@@ -104,6 +104,7 @@ main (int argc, char **argv)
                           "destroy",
                           G_CALLBACK (gtk_main_quit), NULL);
 
+        /* Set black background to make it look nice. */
         gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
 
         widget = gtk_label_new ("<span foreground='white' size='x-large'>"
@@ -112,11 +113,14 @@ main (int argc, char **argv)
         gtk_label_set_use_markup (GTK_LABEL (widget), TRUE);
         gtk_box_pack_start (GTK_BOX (main_vbox), widget, FALSE, FALSE, 0);
 
+        /* Create the widget to display the video on. */
         area = gtk_drawing_area_new ();
         gtk_box_pack_start (GTK_BOX (main_vbox), area, TRUE, TRUE, 0);
-        gtk_widget_set_size_request (area, 320, 240);
-        gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
+        /* Set the smallest acceptable size we want. */
+        gtk_widget_set_size_request (area, 320, 240);
+
+        /* Add control buttons for play/pause and stop. */
         control_hbox = gtk_hbutton_box_new ();
         gtk_button_box_set_layout (GTK_BUTTON_BOX (control_hbox), 
                                    GTK_BUTTONBOX_CENTER);
@@ -131,6 +135,9 @@ main (int argc, char **argv)
         add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT,
                             NULL, NULL);
 
+        /* Setup the drawing area widget as the widget to display the
+         * video on.
+         */
         ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
 
         gtk_widget_show_all (window);
