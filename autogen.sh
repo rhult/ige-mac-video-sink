@@ -8,6 +8,7 @@
 : ${LIBTOOLIZE=libtoolize}
 : ${INTLTOOLIZE=intltoolize}
 : ${LIBTOOL=libtool}
+: ${GTKDOCIZE=gtkdocize}
 
 srcdir=`dirname $0`
 test -z "$srcdir" && srcdir=.
@@ -39,12 +40,20 @@ DIE=0
   }
 }
 
+if grep "^GTK_DOC_CHECK" $srcdir/$CONFIGURE; then
+  ($GTKDOCIZE --version) < /dev/null > /dev/null 2>&1 || {
+    echo
+    echo "You need gtk-doc 1.7 or newer to build $PACKAGE"
+    DIE=1
+  }
+fi
+
 ($AUTOMAKE --version) < /dev/null > /dev/null 2>&1 || {
-	echo
-	echo "You must have automake installed to compile $PROJECT."
-	echo "Get ftp://sourceware.cygnus.com/pub/automake/automake-1.7.tar.gz"
-	echo "(or a newer version if it is available)"
-	DIE=1
+  echo
+  echo "You must have automake installed to compile $PROJECT."
+  echo "Get ftp://sourceware.cygnus.com/pub/automake/automake-1.7.tar.gz"
+  echo "(or a newer version if it is available)"
+  DIE=1
 }
 
 (grep "^AM_PROG_LIBTOOL" $CONFIGURE >/dev/null) && {
@@ -138,6 +147,10 @@ do
       fi
       echo "Running $ACLOCAL $aclocalinclude ..."
       $ACLOCAL $aclocalinclude
+      if grep "^GTK_DOC_CHECK" $CONFIGURE > /dev/null; then
+	echo "Running $GTKDOCIZE..."
+	$GTKDOCIZE
+      fi
       if grep "^AM_CONFIG_HEADER" $CONFIGURE >/dev/null; then
 	echo "Running $AUTOHEADER..."
 	$AUTOHEADER
