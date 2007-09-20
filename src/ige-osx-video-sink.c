@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2007 ....
  *
- * Builds heavily on osxvideosink by:
+ * The code originally builds on osxvideosink by:
  * Copyright (C) 2004-6 Zaheer Abbas Merali <zaheerabbas at merali dot org>
  * Copyright (C) 2007 Pioneers of the Inevitable <songbird@songbirdnest.com>
  * Which also has the comment: "inspiration gained from looking at
@@ -36,7 +36,7 @@
 #include "ige-osx-video-sink.h"
 #include "ige-osx-video-embed.h"
 
-/* NOTE: We are declaring this here for now, because GTK+ doesn't
+/* Note: We are declaring this here for now, because GTK+ doesn't
  * install the header yet (planned but won't do it just yet).
  */
 NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
@@ -70,8 +70,8 @@ GST_STATIC_PAD_TEMPLATE ("sink",
                                  ));
 
 enum {
-        ARG_0,
-        ARG_FULLSCREEN
+        ARG_0
+        /*ARG_FULLSCREEN*/
 };
 
 #define IGE_ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
@@ -98,8 +98,11 @@ struct _IgeOSXVideoSink {
 
         gboolean         needs_viewport_update;
 
-        gboolean         fullscreen;
+        /*gboolean         fullscreen;*/
 
+        /* Used for synchronizing the toplevel creation in the main
+         * thread when the app doesn't provide a widget to draw on.
+         */ 
         GCond           *toplevel_cond;
         GMutex          *toplevel_mutex;
 };
@@ -108,12 +111,14 @@ struct _IgeOSXVideoSinkClass {
         GstVideoSinkClass parent_class;
 };
 
+static void osx_video_sink_setup_context          (IgeOSXVideoSink *sink);
+static void osx_video_sink_teardown_context       (IgeOSXVideoSink *sink);
 static void osx_video_sink_setup_viewport         (IgeOSXVideoSink *sink);
 static void osx_video_sink_setup_size_handling    (IgeOSXVideoSink *sink);
 static void osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink);
 
 
-/* Call with the context being current. */
+/* Must be called with the context being current. */
 static void
 osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 {
@@ -128,8 +133,8 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         width = GST_VIDEO_SINK_WIDTH (sink);
         height = GST_VIDEO_SINK_HEIGHT (sink);
 
-        /* FIXME: Should make the allocs handle oom gracefully perhaps
-         * for big buffers?
+        /* Note: We could make the buffer allocs handle OOM gracefully
+         * in case the incoming buffer is really huge.
          */
         if (sink->texture_buffer) {
                 sink->texture_buffer = g_realloc (sink->texture_buffer,
@@ -148,7 +153,7 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 
         glBindTexture (GL_TEXTURE_RECTANGLE_EXT, sink->texture);
 
-        /* Note: those two optimizations only actually help if the
+        /* Note: those two optimizations only does something if the
          * texture's width and height is a power of 2:
          */
 
@@ -160,7 +165,7 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         /* Don't copy the texture data, use our buffer. */
         glPixelStorei (GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
 
-        /* Linear interpolation */
+        /* Linear interpolation for the scaling. */
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT, 
                          GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri (GL_TEXTURE_RECTANGLE_EXT, 
@@ -179,7 +184,7 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
         sink->init_done = TRUE;
 }
 
-/* Call this with the context being current. */
+/* Must be called with the context being current. */
 static void
 osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 {
@@ -206,7 +211,7 @@ osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
                          sink->texture_buffer);
 }
 
-/* Call this with the context being current. */
+/* Must be called with the context being current. */
 static void
 osx_video_sink_draw (IgeOSXVideoSink *sink)
 {
@@ -307,7 +312,7 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
                         return;
                 }
 
-                /* NOTE: We could also fall back to default format if
+                /* Note: We could also fall back to default format if
                  * necessary here:
                  */
                 /* format =  [[sink->view class] defaultPixelFormat]; */
@@ -408,7 +413,10 @@ osx_video_sink_set_caps (GstBaseSink *bsink,
 }
 
 #if 0
-/* Sends a message to the bus to let the app provide a widget. If the
+/* Leaving this out for now, but a future implementation could use the
+ * bus to signal when a widget is needed:
+ *
+ * Sends a message to the bus to let the app provide a widget. If the
  * app doesn't, we create a toplevel window containing a drawing area
  * ourselves (mostly for demos and gst-launch testing).
  */
@@ -584,7 +592,7 @@ osx_video_sink_show_frame (GstBaseSink *bsink,
         return GST_FLOW_OK;
 }
 
-/* Call with the context being current. */
+/* Must be called with the context being current. */
 static void
 osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
 {
@@ -728,9 +736,10 @@ osx_video_sink_set_property (GObject      *object,
         sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_FULLSCREEN:
+                /*case ARG_FULLSCREEN:
                 sink->fullscreen = g_value_get_boolean (value);
                 break;
+                */
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
                 break;
@@ -748,9 +757,9 @@ osx_video_sink_get_property (GObject    *object,
         sink = IGE_OSX_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_FULLSCREEN:
+                /*case ARG_FULLSCREEN:
                 g_value_set_boolean (value, sink->fullscreen);
-                break;
+                break;*/
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
                 break;
@@ -797,16 +806,12 @@ ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
         gstbasesink_class->render = osx_video_sink_show_frame;
         gstelement_class->change_state = osx_video_sink_change_state;
 
-        /**
-         * IgeOSXVideoSink:fullscreen
-         *
-         * Set to #TRUE to have the video displayed in fullscreen.
-         **/
-        g_object_class_install_property (
+/*        g_object_class_install_property (
                 gobject_class, ARG_FULLSCREEN,
                 g_param_spec_boolean ("fullscreen", "fullscreen",
                                       "When enabled, the view is fullscreen", FALSE,
                                       G_PARAM_READWRITE));
+*/
 }
 
 static void
