@@ -1,4 +1,4 @@
-/* GTK+ OS X video sink
+/* GTK+ Mac video sink
  *
  * Copyright (C) 2007 ....
  *
@@ -18,8 +18,8 @@
  * Boston, MA 02111-1307, USA.
  */
  
-#ifndef __GTK_OSX_VIDEO_SINK_H__
-#define __GTK_OSX_VIDEO_SINK_H__
+#ifndef __GTK_MAC_VIDEO_SINK_H__
+#define __GTK_MAC_VIDEO_SINK_H__
 
 #include <gst/gst.h>
 #include <gst/video/gstvideosink.h>
@@ -27,17 +27,17 @@
 
 G_BEGIN_DECLS
 
-#define IGE_TYPE_OSX_VIDEO_SINK            (ige_osx_video_sink_get_type())
-#define IGE_OSX_VIDEO_SINK(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj), IGE_TYPE_OSX_VIDEO_SINK, IgeOSXVideoSink))
-#define IGE_OSX_VIDEO_SINK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass), IGE_TYPE_OSX_VIDEO_SINK, IgeOSXVideoSinkClass))
-#define IGE_IS_OSX_VIDEO_SINK(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj), IGE_TYPE_OSX_VIDEO_SINK))
-#define IGE_IS_OSX_VIDEO_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass), IGE_TYPE_OSX_VIDEO_SINK))
+#define IGE_TYPE_MAC_VIDEO_SINK            (ige_mac_video_sink_get_type())
+#define IGE_MAC_VIDEO_SINK(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj), IGE_TYPE_MAC_VIDEO_SINK, IgeMacVideoSink))
+#define IGE_MAC_VIDEO_SINK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass), IGE_TYPE_MAC_VIDEO_SINK, IgeMacVideoSinkClass))
+#define IGE_IS_MAC_VIDEO_SINK(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj), IGE_TYPE_MAC_VIDEO_SINK))
+#define IGE_IS_MAC_VIDEO_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass), IGE_TYPE_MAC_VIDEO_SINK))
 
-typedef struct _IgeOSXVideoSink      IgeOSXVideoSink;
-typedef struct _IgeOSXVideoSinkClass IgeOSXVideoSinkClass;
+typedef struct _IgeMacVideoSink      IgeMacVideoSink;
+typedef struct _IgeMacVideoSinkClass IgeMacVideoSinkClass;
 
-GType ige_osx_video_sink_get_type (void);
+GType ige_mac_video_sink_get_type (void);
 
 G_END_DECLS
 
-#endif /* __IGE_OSX_VIDEO_SINK_H__ */
+#endif /* __IGE_MAC_VIDEO_SINK_H__ */

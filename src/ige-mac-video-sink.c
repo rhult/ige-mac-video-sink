@@ -1,4 +1,4 @@
-/* GTK+ OS X video sink
+/* GTK+ Mac video sink
  *
  * Copyright (C) 2007 ....
  *
@@ -33,8 +33,8 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glext.h>
 
-#include "ige-osx-video-sink.h"
-#include "ige-osx-video-embed.h"
+#include "ige-mac-video-sink.h"
+#include "ige-mac-video-embed.h"
 
 /* Note: We are declaring this here for now, because GTK+ doesn't
  * install the header yet (planned but won't do it just yet).
@@ -42,11 +42,11 @@
 NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
 
 /* Debugging category */
-GST_DEBUG_CATEGORY (debug_ige_osx_video_sink);
-#define GST_CAT_DEFAULT debug_ige_osx_video_sink
+GST_DEBUG_CATEGORY (debug_ige_mac_video_sink);
+#define GST_CAT_DEFAULT debug_ige_mac_video_sink
 
 /* ElementFactory information */
-static const GstElementDetails ige_osx_video_sink_details =
+static const GstElementDetails ige_mac_video_sink_details =
 GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
                      "Sink/Video",
                      "GTK+ OS X videosink",
@@ -54,7 +54,7 @@ GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
 
 /* Default template - initiated with class struct to allow gst-register to work
    without X running */
-static GstStaticPadTemplate ige_osx_video_sink_sink_template_factory =
+static GstStaticPadTemplate ige_mac_video_sink_sink_template_factory =
 GST_STATIC_PAD_TEMPLATE ("sink",
                          GST_PAD_SINK,
                          GST_PAD_ALWAYS,
@@ -79,7 +79,7 @@ enum {
 
 static GstVideoSinkClass *parent_class = NULL;
 
-struct _IgeOSXVideoSink {
+struct _IgeMacVideoSink {
         GstVideoSink     videosink;
 
         /* The GtkWidget to draw on. */
@@ -107,20 +107,20 @@ struct _IgeOSXVideoSink {
         GMutex          *toplevel_mutex;
 };
 
-struct _IgeOSXVideoSinkClass {
+struct _IgeMacVideoSinkClass {
         GstVideoSinkClass parent_class;
 };
 
-static void osx_video_sink_setup_context          (IgeOSXVideoSink *sink);
-static void osx_video_sink_teardown_context       (IgeOSXVideoSink *sink);
-static void osx_video_sink_setup_viewport         (IgeOSXVideoSink *sink);
-static void osx_video_sink_setup_size_handling    (IgeOSXVideoSink *sink);
-static void osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink);
+static void mac_video_sink_setup_context          (IgeMacVideoSink *sink);
+static void mac_video_sink_teardown_context       (IgeMacVideoSink *sink);
+static void mac_video_sink_setup_viewport         (IgeMacVideoSink *sink);
+static void mac_video_sink_setup_size_handling    (IgeMacVideoSink *sink);
+static void mac_video_sink_teardown_size_handling (IgeMacVideoSink *sink);
 
 
 /* Must be called with the context being current. */
 static void
-osx_video_sink_init_texture (IgeOSXVideoSink *sink)
+mac_video_sink_init_texture (IgeMacVideoSink *sink)
 {
         gint width;
         gint height;
@@ -186,7 +186,7 @@ osx_video_sink_init_texture (IgeOSXVideoSink *sink)
 
 /* Must be called with the context being current. */
 static void
-osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
+mac_video_sink_reload_texture (IgeMacVideoSink *sink)
 {
         gint width;
         gint height;
@@ -213,10 +213,10 @@ osx_video_sink_reload_texture (IgeOSXVideoSink *sink)
 
 /* Must be called with the context being current. */
 static void
-osx_video_sink_draw (IgeOSXVideoSink *sink)
+mac_video_sink_draw (IgeMacVideoSink *sink)
 {
         if (sink->needs_viewport_update) {
-                osx_video_sink_setup_viewport (sink);
+                mac_video_sink_setup_viewport (sink);
         }
 
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -256,7 +256,7 @@ osx_video_sink_draw (IgeOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_display_texture (IgeOSXVideoSink *sink)
+mac_video_sink_display_texture (IgeMacVideoSink *sink)
 {
         if (!sink->widget || !sink->view) {
                 return;
@@ -275,8 +275,8 @@ osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 
                 [sink->gl_context makeCurrentContext];
 
-                osx_video_sink_draw (sink);
-                osx_video_sink_reload_texture (sink);
+                mac_video_sink_draw (sink);
+                mac_video_sink_reload_texture (sink);
 
                 [sink->view unlockFocus];
         }
@@ -285,7 +285,7 @@ osx_video_sink_display_texture (IgeOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_setup_context (IgeOSXVideoSink *sink)
+mac_video_sink_setup_context (IgeMacVideoSink *sink)
 {
         if (!sink->gl_context) {
                 NSOpenGLContext              *context;
@@ -351,7 +351,7 @@ osx_video_sink_setup_context (IgeOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
+mac_video_sink_teardown_context (IgeMacVideoSink *sink)
 {
         if (sink->gl_context) {
                 IGE_ALLOC_POOL;
@@ -373,15 +373,15 @@ osx_video_sink_teardown_context (IgeOSXVideoSink *sink)
 }
 
 static gboolean
-osx_video_sink_set_caps (GstBaseSink *bsink,
+mac_video_sink_set_caps (GstBaseSink *bsink,
                          GstCaps     *caps)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
         GstStructure    *structure;
         gboolean         result;
         gint             video_width, video_height;
 
-        sink = IGE_OSX_VIDEO_SINK (bsink);
+        sink = IGE_MAC_VIDEO_SINK (bsink);
 
         GST_DEBUG_OBJECT (sink, "caps: %" GST_PTR_FORMAT, caps);
 
@@ -404,7 +404,7 @@ osx_video_sink_set_caps (GstBaseSink *bsink,
                 [sink->gl_context makeCurrentContext];
                 [sink->gl_context update];
 
-                osx_video_sink_init_texture (sink);
+                mac_video_sink_init_texture (sink);
 
                 sink->needs_viewport_update = TRUE;
         }
@@ -421,7 +421,7 @@ osx_video_sink_set_caps (GstBaseSink *bsink,
  * ourselves (mostly for demos and gst-launch testing).
  */
 static void
-osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
+mac_video_sink_prepare_widget (IgeMacVideoSink *sink)
 {
     GstStructure *s;
     GstMessage   *msg;
@@ -438,8 +438,8 @@ osx_video_sink_prepare_widget (IgeOSXVideoSink *sink)
 #endif
 
 static void
-osx_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
-                                    IgeOSXVideoSink *sink)
+mac_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
+                                    IgeMacVideoSink *sink)
 {
         if (sink->toplevel) {
                 sink->toplevel = NULL;
@@ -447,13 +447,13 @@ osx_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
                 sink->view = NULL;
                 sink->init_done = FALSE;
 
-                osx_video_sink_teardown_context (sink);
+                mac_video_sink_teardown_context (sink);
         }
 }
 
 static void
-osx_video_sink_widget_realize_cb (GtkWidget       *widget,
-                                  IgeOSXVideoSink *sink)
+mac_video_sink_widget_realize_cb (GtkWidget       *widget,
+                                  IgeMacVideoSink *sink)
 {
         /* Get rid of the default background flickering by before we
          * draw anything.
@@ -464,7 +464,7 @@ osx_video_sink_widget_realize_cb (GtkWidget       *widget,
 }
 
 static gboolean
-create_toplevel_idle_cb (IgeOSXVideoSink *sink)
+create_toplevel_idle_cb (IgeMacVideoSink *sink)
 {
         GdkColor black = { 0, 0, 0, 0 };
 
@@ -475,7 +475,7 @@ create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 
         g_signal_connect (sink->toplevel,
                           "destroy",
-                          G_CALLBACK (osx_video_sink_toplevel_destroy_cb),
+                          G_CALLBACK (mac_video_sink_toplevel_destroy_cb),
                           sink);
 
         gtk_widget_modify_bg (sink->toplevel, GTK_STATE_NORMAL, &black);
@@ -486,12 +486,12 @@ create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 
         g_signal_connect (sink->widget,
                           "realize",
-                          G_CALLBACK (osx_video_sink_widget_realize_cb),
+                          G_CALLBACK (mac_video_sink_widget_realize_cb),
                           sink);
 
         gtk_widget_show_all (sink->toplevel);
 
-        osx_video_sink_setup_size_handling (sink);
+        mac_video_sink_setup_size_handling (sink);
 
         g_cond_signal (sink->toplevel_cond);
         g_mutex_unlock (sink->toplevel_mutex);
@@ -500,12 +500,12 @@ create_toplevel_idle_cb (IgeOSXVideoSink *sink)
 }
 
 static GstStateChangeReturn
-osx_video_sink_change_state (GstElement     *element,
+mac_video_sink_change_state (GstElement     *element,
                              GstStateChange  transition)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
 
-        sink = IGE_OSX_VIDEO_SINK (element);
+        sink = IGE_MAC_VIDEO_SINK (element);
 
         GST_DEBUG_OBJECT (sink, "%s => %s",
                           gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
@@ -528,7 +528,7 @@ osx_video_sink_change_state (GstElement     *element,
                         }
                         g_mutex_unlock (sink->toplevel_mutex);
 
-                        osx_video_sink_setup_context (sink);
+                        mac_video_sink_setup_context (sink);
                 } else {
                         /* Resize if we are in control of the window. */
                         if (sink->toplevel && sink->widget) {
@@ -560,7 +560,7 @@ osx_video_sink_change_state (GstElement     *element,
                         sink->widget = NULL;
                         sink->view = NULL;
 
-                        osx_video_sink_teardown_context (sink);
+                        mac_video_sink_teardown_context (sink);
                 }
                 break;
         }
@@ -569,14 +569,14 @@ osx_video_sink_change_state (GstElement     *element,
 }
 
 static GstFlowReturn
-osx_video_sink_show_frame (GstBaseSink *bsink,
+mac_video_sink_show_frame (GstBaseSink *bsink,
                            GstBuffer   *buf)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
 
         GST_DEBUG ("show_frame");
 
-        sink = IGE_OSX_VIDEO_SINK (bsink);
+        sink = IGE_MAC_VIDEO_SINK (bsink);
 
         if (!sink->init_done) {
                 return GST_FLOW_UNEXPECTED;
@@ -587,14 +587,14 @@ osx_video_sink_show_frame (GstBaseSink *bsink,
         }
 
         memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
-        osx_video_sink_display_texture (sink);
+        mac_video_sink_display_texture (sink);
 
         return GST_FLOW_OK;
 }
 
 /* Must be called with the context being current. */
 static void
-osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
+mac_video_sink_setup_viewport (IgeMacVideoSink *sink)
 {
         gint              in_width;
         gint              in_height;
@@ -629,9 +629,9 @@ osx_video_sink_setup_viewport (IgeOSXVideoSink *sink)
 }
 
 static void
-osx_video_sink_size_allocate_cb (GtkWidget       *widget,
+mac_video_sink_size_allocate_cb (GtkWidget       *widget,
                                  GtkAllocation   *allocation,
-                                 IgeOSXVideoSink *sink)
+                                 IgeMacVideoSink *sink)
 {
         if (!sink->gl_context) {
                 return;
@@ -640,57 +640,57 @@ osx_video_sink_size_allocate_cb (GtkWidget       *widget,
         [sink->gl_context makeCurrentContext];
         [sink->gl_context update];
 
-        osx_video_sink_setup_viewport (sink);
+        mac_video_sink_setup_viewport (sink);
 
         /* Ensure we draw the latest frame when paused. */
         if (sink->texture) {
-                osx_video_sink_draw (sink);
+                mac_video_sink_draw (sink);
         }
 }
 
 static void
-osx_video_sink_setup_size_handling (IgeOSXVideoSink *sink)
+mac_video_sink_setup_size_handling (IgeMacVideoSink *sink)
 {
         g_signal_connect (sink->widget,
                           "size-allocate",
-                          G_CALLBACK (osx_video_sink_size_allocate_cb),
+                          G_CALLBACK (mac_video_sink_size_allocate_cb),
                           sink);
 }
 
 static void
-osx_video_sink_teardown_size_handling (IgeOSXVideoSink *sink)
+mac_video_sink_teardown_size_handling (IgeMacVideoSink *sink)
 {
         g_signal_handlers_disconnect_by_func (
                 sink->widget,
-                G_CALLBACK (osx_video_sink_size_allocate_cb),
+                G_CALLBACK (mac_video_sink_size_allocate_cb),
                 sink);
 }
 
 static void
-osx_video_sink_widget_destroy_cb (GtkWidget       *widget,
-                                  IgeOSXVideoSink *sink)
+mac_video_sink_widget_destroy_cb (GtkWidget       *widget,
+                                  IgeMacVideoSink *sink)
 {
         sink->widget = NULL;
         sink->view = NULL;
         sink->init_done = FALSE;
 
-        osx_video_sink_teardown_context (sink);
+        mac_video_sink_teardown_context (sink);
 }
 
 static void
-osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
+mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
                            GtkWidget        *widget)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
 
-        sink = IGE_OSX_VIDEO_SINK (embed);
+        sink = IGE_MAC_VIDEO_SINK (embed);
 
         if (sink->widget) {
-                osx_video_sink_teardown_size_handling (sink);
+                mac_video_sink_teardown_size_handling (sink);
 
                 g_signal_handlers_disconnect_by_func (
                         sink->widget,
-                        G_CALLBACK (osx_video_sink_widget_realize_cb),
+                        G_CALLBACK (mac_video_sink_widget_realize_cb),
                         sink);
         }
 
@@ -704,36 +704,36 @@ osx_video_sink_set_widget (IgeOSXVideoEmbed *embed,
 
         if (widget) {
                 sink->widget = widget;
-                osx_video_sink_setup_context (sink);
-                osx_video_sink_setup_size_handling (sink);
+                mac_video_sink_setup_context (sink);
+                mac_video_sink_setup_size_handling (sink);
 
                 sink->needs_viewport_update = TRUE;
 
                 g_signal_connect (widget,
                                   "destroy",
-                                  G_CALLBACK (osx_video_sink_widget_destroy_cb),
+                                  G_CALLBACK (mac_video_sink_widget_destroy_cb),
                                   sink);
 
                 if (GTK_WIDGET_REALIZED (widget)) {
-                        osx_video_sink_widget_realize_cb (widget, sink);
+                        mac_video_sink_widget_realize_cb (widget, sink);
                 } else {
                         g_signal_connect (widget,
                                           "realize",
-                                          G_CALLBACK (osx_video_sink_widget_realize_cb),
+                                          G_CALLBACK (mac_video_sink_widget_realize_cb),
                                           sink);
                 }
         }
 }
 
 static void
-osx_video_sink_set_property (GObject      *object,
+mac_video_sink_set_property (GObject      *object,
                              guint         prop_id,
                              const GValue *value,
                              GParamSpec   *pspec)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
 
-        sink = IGE_OSX_VIDEO_SINK (object);
+        sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
                 /*case ARG_FULLSCREEN:
@@ -747,14 +747,14 @@ osx_video_sink_set_property (GObject      *object,
 }
 
 static void
-osx_video_sink_get_property (GObject    *object,
+mac_video_sink_get_property (GObject    *object,
                              guint       prop_id,
                              GValue     *value,
                              GParamSpec *pspec)
 {
-        IgeOSXVideoSink *sink;
+        IgeMacVideoSink *sink;
 
-        sink = IGE_OSX_VIDEO_SINK (object);
+        sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
                 /*case ARG_FULLSCREEN:
@@ -767,26 +767,26 @@ osx_video_sink_get_property (GObject    *object,
 }
 
 static void
-ige_osx_video_sink_init (IgeOSXVideoSink *sink)
+ige_mac_video_sink_init (IgeMacVideoSink *sink)
 {
         sink->toplevel_cond = g_cond_new ();
         sink->toplevel_mutex = g_mutex_new ();  
 }
 
 static void
-ige_osx_video_sink_base_init (gpointer g_class)
+ige_mac_video_sink_base_init (gpointer g_class)
 {
         GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-        gst_element_class_set_details (element_class, &ige_osx_video_sink_details);
+        gst_element_class_set_details (element_class, &ige_mac_video_sink_details);
 
         gst_element_class_add_pad_template (
                 element_class,
-                gst_static_pad_template_get (&ige_osx_video_sink_sink_template_factory));
+                gst_static_pad_template_get (&ige_mac_video_sink_sink_template_factory));
 }
 
 static void
-ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
+ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
 {
         GObjectClass     *gobject_class;
         GstElementClass  *gstelement_class;
@@ -798,13 +798,13 @@ ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
 
         parent_class = g_type_class_ref (GST_TYPE_VIDEO_SINK);
 
-        gobject_class->set_property = osx_video_sink_set_property;
-        gobject_class->get_property = osx_video_sink_get_property;
+        gobject_class->set_property = mac_video_sink_set_property;
+        gobject_class->get_property = mac_video_sink_get_property;
 
-        gstbasesink_class->set_caps = osx_video_sink_set_caps;
-        gstbasesink_class->preroll = osx_video_sink_show_frame;
-        gstbasesink_class->render = osx_video_sink_show_frame;
-        gstelement_class->change_state = osx_video_sink_change_state;
+        gstbasesink_class->set_caps = mac_video_sink_set_caps;
+        gstbasesink_class->preroll = mac_video_sink_show_frame;
+        gstbasesink_class->render = mac_video_sink_show_frame;
+        gstelement_class->change_state = mac_video_sink_change_state;
 
 /*        g_object_class_install_property (
                 gobject_class, ARG_FULLSCREEN,
@@ -815,39 +815,39 @@ ige_osx_video_sink_class_init (IgeOSXVideoSinkClass * klass)
 }
 
 static void
-ige_osx_video_embed_iface_init (IgeOSXVideoEmbedIface *iface)
+ige_mac_video_embed_iface_init (IgeMacVideoEmbedIface *iface)
 {
-        iface->set_widget = osx_video_sink_set_widget;
+        iface->set_widget = mac_video_sink_set_widget;
 }
 
 GType
-ige_osx_video_sink_get_type (void)
+ige_mac_video_sink_get_type (void)
 {
         static GType sink_type = 0;
 
         if (!sink_type) {
                 const GTypeInfo sink_info = {
-                        sizeof (IgeOSXVideoSinkClass),
-                        ige_osx_video_sink_base_init,
+                        sizeof (IgeMacVideoSinkClass),
+                        ige_mac_video_sink_base_init,
                         NULL,
-                        (GClassInitFunc) ige_osx_video_sink_class_init,
+                        (GClassInitFunc) ige_mac_video_sink_class_init,
                         NULL,
                         NULL,
-                        sizeof (IgeOSXVideoSink),
+                        sizeof (IgeMacVideoSink),
                         0,
-                        (GInstanceInitFunc) ige_osx_video_sink_init,
+                        (GInstanceInitFunc) ige_mac_video_sink_init,
                 };
 
                 const GInterfaceInfo embed_info = {
-                        (GInterfaceInitFunc) ige_osx_video_embed_iface_init,
+                        (GInterfaceInitFunc) ige_mac_video_embed_iface_init,
                         NULL,
                         NULL,
                 };
 
                 sink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
-                                                    "IgeOSXVideoSink", &sink_info, 0);
+                                                    "IgeMacVideoSink", &sink_info, 0);
 
-                g_type_add_interface_static (sink_type, IGE_TYPE_OSX_VIDEO_EMBED,
+                g_type_add_interface_static (sink_type, IGE_TYPE_MAC_VIDEO_EMBED,
                                              &embed_info);
         }
 
@@ -858,18 +858,18 @@ static gboolean
 plugin_init (GstPlugin *plugin)
 {
 
-  if (!gst_element_register (plugin, "igeosxvideosink",
-          GST_RANK_PRIMARY, IGE_TYPE_OSX_VIDEO_SINK))
+  if (!gst_element_register (plugin, "igemacvideosink",
+          GST_RANK_PRIMARY, IGE_TYPE_MAC_VIDEO_SINK))
     return FALSE;
 
-  GST_DEBUG_CATEGORY_INIT (debug_ige_osx_video_sink, "igeosxvideosink", 0,
-      "igeosxvideosink element");
+  GST_DEBUG_CATEGORY_INIT (debug_ige_mac_video_sink, "igemacvideosink", 0,
+      "igemacvideosink element");
 
   return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    "igeosxvideosink",
-    "GTK+ OS X native video output plugin",
+    "igemacvideosink",
+    "GTK+ Mac native video output plugin",
     plugin_init, VERSION, "LGPL", "GTK+ OS X video sink", "http://developer.imendio.com/")
