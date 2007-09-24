@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.52)
  
-AC_INIT(ige-mac-video-sink, 0.8)
+AC_INIT(ige-mac-video-sink, 0.9)
 AC_CONFIG_SRCDIR(src/ige-mac-video-sink.c)
 AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
 
