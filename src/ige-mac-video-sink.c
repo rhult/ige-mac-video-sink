@@ -745,6 +745,23 @@ mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
 }
 
 static void
+mac_video_sink_finalize (GObject *object)
+{
+        IgeMacVideoSink *sink;
+
+        sink = IGE_MAC_VIDEO_SINK (object);
+
+        g_mutex_free (sink->toplevel_mutex);
+        g_cond_free (sink->toplevel_cond);
+
+        mac_video_sink_teardown_context (sink);
+
+        if (G_OBJECT_CLASS (parent_class)->finalize) {
+                G_OBJECT_CLASS (parent_class)->finalize (object);
+        }
+}
+
+static void
 mac_video_sink_set_property (GObject      *object,
                              guint         prop_id,
                              const GValue *value,
@@ -817,6 +834,7 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
 
         parent_class = g_type_class_ref (GST_TYPE_VIDEO_SINK);
 
+        gobject_class->finalize = mac_video_sink_finalize;
         gobject_class->set_property = mac_video_sink_set_property;
         gobject_class->get_property = mac_video_sink_get_property;
 
