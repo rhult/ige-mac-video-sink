@@ -1,7 +1,57 @@
+/*
+ * Copyright (C) 2007 Imendio AB
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; version 2.1
+ * of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ *
+ */
+
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
 #include <gst/gst.h>
 
 #include "ige-mac-video-embed.h"
+
+static gboolean
+key_press_event_cb (GtkWidget   *widget, 
+                    GdkEventKey *event, 
+                    GtkWidget   *window)
+{
+        static gboolean fullscreen;
+
+        switch (event->keyval) {
+        case GDK_Escape:
+                gtk_main_quit ();
+                break;
+
+        case GDK_f:
+                fullscreen = !fullscreen;
+
+                if (fullscreen) {
+                        gtk_window_fullscreen (GTK_WINDOW (window));
+                } else {
+                        gtk_window_unfullscreen (GTK_WINDOW (window));
+                }
+                break;
+
+        default:
+                break;
+        }
+        
+	return FALSE;
+}
 
 static void
 add_control_button (GtkWidget   *box, 
@@ -69,6 +119,10 @@ main (int argc, char **argv)
         GdkColor    black = { 0, 0, 0, 0 };
         gchar      *uri;
 
+        g_thread_init (NULL);
+        gdk_threads_init ();
+        gdk_threads_enter ();
+
         gst_init (&argc, &argv);
         gtk_init (&argc, &argv);
 
@@ -103,6 +157,10 @@ main (int argc, char **argv)
         g_signal_connect (window, 
                           "destroy",
                           G_CALLBACK (gtk_main_quit), NULL);
+        g_signal_connect (window,
+                          "key-press-event",
+                          G_CALLBACK (key_press_event_cb),
+                          window);
 
         /* Set black background to make it look nice. */
         gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
@@ -145,6 +203,8 @@ main (int argc, char **argv)
         gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
         gtk_main ();
+
+        gdk_threads_leave ();
 
         return 0;
 }
