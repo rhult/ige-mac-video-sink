@@ -120,8 +120,9 @@ struct _IgeMacVideoSinkClass {
 static void mac_video_sink_setup_context          (IgeMacVideoSink *sink);
 static void mac_video_sink_teardown_context       (IgeMacVideoSink *sink);
 static void mac_video_sink_setup_viewport         (IgeMacVideoSink *sink);
-static void mac_video_sink_setup_size_handling    (IgeMacVideoSink *sink);
-static void mac_video_sink_teardown_size_handling (IgeMacVideoSink *sink);
+static void mac_video_sink_size_allocate_cb       (GtkWidget       *widget,
+                                                   GtkAllocation   *allocation,
+                                                   IgeMacVideoSink *sink);
 
 
 /* Must be called with the context being current. */
@@ -501,7 +502,10 @@ create_toplevel_idle_cb (IgeMacVideoSink *sink)
 
         gtk_widget_show_all (sink->toplevel);
 
-        mac_video_sink_setup_size_handling (sink);
+        g_signal_connect (sink->widget,
+                          "size-allocate",
+                          G_CALLBACK (mac_video_sink_size_allocate_cb),
+                          sink);
 
         g_cond_signal (sink->toplevel_cond);
         g_mutex_unlock (sink->toplevel_mutex);
@@ -574,8 +578,9 @@ mac_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
-                 if (sink->toplevel) {
+                if (sink->toplevel) {
                         gtk_widget_destroy (sink->toplevel);
+
                         sink->toplevel = NULL;
                         sink->widget = NULL;
                         sink->view = NULL;
@@ -669,24 +674,6 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
 }
 
 static void
-mac_video_sink_setup_size_handling (IgeMacVideoSink *sink)
-{
-        g_signal_connect (sink->widget,
-                          "size-allocate",
-                          G_CALLBACK (mac_video_sink_size_allocate_cb),
-                          sink);
-}
-
-static void
-mac_video_sink_teardown_size_handling (IgeMacVideoSink *sink)
-{
-        g_signal_handlers_disconnect_by_func (
-                sink->widget,
-                G_CALLBACK (mac_video_sink_size_allocate_cb),
-                sink);
-}
-
-static void
 mac_video_sink_widget_destroy_cb (GtkWidget       *widget,
                                   IgeMacVideoSink *sink)
 {
@@ -706,7 +693,10 @@ mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
         sink = IGE_MAC_VIDEO_SINK (embed);
 
         if (sink->widget) {
-                mac_video_sink_teardown_size_handling (sink);
+                g_signal_handlers_disconnect_by_func (
+                        sink->widget,
+                        G_CALLBACK (mac_video_sink_size_allocate_cb),
+                        sink);
 
                 g_signal_handlers_disconnect_by_func (
                         sink->widget,
@@ -725,7 +715,11 @@ mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
         if (widget) {
                 sink->widget = widget;
                 mac_video_sink_setup_context (sink);
-                mac_video_sink_setup_size_handling (sink);
+
+                g_signal_connect (widget,
+                                  "size-allocate",
+                                  G_CALLBACK (mac_video_sink_size_allocate_cb),
+                                  sink);
 
                 sink->needs_viewport_update = TRUE;
 
