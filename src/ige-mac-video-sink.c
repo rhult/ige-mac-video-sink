@@ -1,6 +1,7 @@
 /* GTK+ Mac video sink
  *
  * Copyright (C) 2007 Pioneer Research Center USA, Inc.
+ * Copyright (C) 2007 Imendio AB
  *
  * The code originally builds on osxvideosink by:
  * Copyright (C) 2004-6 Zaheer Abbas Merali <zaheerabbas at merali dot org>
