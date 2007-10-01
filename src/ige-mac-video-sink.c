@@ -463,15 +463,21 @@ mac_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
 }
 
 static void
-mac_video_sink_widget_realize_cb (GtkWidget       *widget,
-                                  IgeMacVideoSink *sink)
+mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink)
 {
         /* Get rid of the default background flickering by before we
          * draw anything.
          */
-        gdk_window_set_back_pixmap (widget->window, NULL, FALSE);
+        gdk_window_set_back_pixmap (sink->widget->window, NULL, FALSE);
 
-        sink->view = gdk_quartz_window_get_nsview (widget->window);
+        sink->view = gdk_quartz_window_get_nsview (sink->widget->window);
+}
+
+static void
+mac_video_sink_widget_realize_cb (GtkWidget       *widget,
+                                  IgeMacVideoSink *sink)
+{
+        mac_video_sink_widget_setup_nsview (sink);
 }
 
 static gboolean
@@ -733,13 +739,16 @@ mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
                                   G_CALLBACK (mac_video_sink_widget_destroy_cb),
                                   sink);
 
-                if (GTK_WIDGET_REALIZED (widget)) {
-                        mac_video_sink_widget_realize_cb (widget, sink);
-                } else {
-                        g_signal_connect (widget,
-                                          "realize",
-                                          G_CALLBACK (mac_video_sink_widget_realize_cb),
-                                          sink);
+                g_signal_connect (widget,
+                                  "realize",
+                                  G_CALLBACK (mac_video_sink_widget_realize_cb),
+                                  sink);
+
+                /* Handle the case where the widget is already
+                 * realized too.
+                 */
+                if (GTK_WIDGET_REALIZED (sink->widget)) {
+                        mac_video_sink_widget_setup_nsview (sink);
                 }
         }
 }
