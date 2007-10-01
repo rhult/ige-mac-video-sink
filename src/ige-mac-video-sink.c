@@ -105,6 +105,12 @@ struct _IgeMacVideoSink {
          */ 
         GCond           *toplevel_cond;
         GMutex          *toplevel_mutex;
+
+        /* Used to decide if we should update a paused picture, so we
+         * can avoid touching the GL stuff from the main thread in the
+         * size allocate callback.
+         */
+        gboolean         have_still_image;
 };
 
 struct _IgeMacVideoSinkClass {
@@ -512,6 +518,16 @@ mac_video_sink_change_state (GstElement     *element,
                           gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
 
         switch (transition) {
+        case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+                sink->have_still_image = TRUE;
+                break;
+
+        default:
+                sink->have_still_image = FALSE;
+                break;
+        }
+
+        switch (transition) {
         case GST_STATE_CHANGE_NULL_TO_READY:
                 /* No widget is given to us, create our own toplevel. */
                 if (!sink->widget) {
@@ -643,7 +659,7 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
         mac_video_sink_setup_viewport (sink);
 
         /* Ensure we draw the latest frame when paused. */
-        if (sink->texture) {
+        if (sink->texture && sink->have_still_image) {
                 mac_video_sink_draw (sink);
         }
 }
