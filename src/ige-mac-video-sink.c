@@ -276,6 +276,8 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
 
         IGE_ALLOC_POOL;
 
+        gdk_threads_enter ();
+
         if ([sink->view lockFocusIfCanDraw]) {
                 [sink->gl_context setView:sink->view];
 
@@ -286,6 +288,8 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
 
                 [sink->view unlockFocus];
         }
+
+        gdk_threads_leave ();
 
         IGE_RELEASE_POOL;
 }
@@ -536,7 +540,7 @@ mac_video_sink_change_state (GstElement     *element,
                          * thread, add an idle callback and wait for
                          * it here to complete.
                          */
-                        g_idle_add ((GSourceFunc) create_toplevel_idle_cb, sink);
+                        gdk_threads_add_idle ((GSourceFunc) create_toplevel_idle_cb, sink);
 
                         g_mutex_lock (sink->toplevel_mutex);
                         while (!sink->toplevel) {
