@@ -556,9 +556,11 @@ mac_video_sink_change_state (GstElement     *element,
                 } else {
                         /* Resize if we are in control of the window. */
                         if (sink->toplevel && sink->widget) {
+                                gdk_threads_enter ();
                                 gtk_widget_set_size_request (sink->widget,
                                                              GST_VIDEO_SINK_WIDTH (sink),
                                                              GST_VIDEO_SINK_HEIGHT (sink));
+                                gdk_threads_leave ();
                         }
                 }
                 break;
@@ -579,11 +581,14 @@ mac_video_sink_change_state (GstElement     *element,
 
         case GST_STATE_CHANGE_READY_TO_NULL:
                 if (sink->toplevel) {
+                        gdk_threads_enter ();
                         gtk_widget_destroy (sink->toplevel);
 
                         sink->toplevel = NULL;
                         sink->widget = NULL;
                         sink->view = NULL;
+
+                        gdk_threads_leave ();
 
                         mac_video_sink_teardown_context (sink);
                 }
