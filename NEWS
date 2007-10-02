@@ -1,0 +1,13 @@
+News in 0.9
+===========
+
+This release improves behavior when resizing the output widget while
+playing a video. Details:
+
+* Use the global GDK lock to protect all gtk_ calls done from other
+  threads than the main thread
+
+* Only redraw the frame when resizing if the video is paused
+
+* Update test-sink to include fullscreen mode (by pressing 'f') and
+  quit when Escape is pressed
