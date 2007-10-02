@@ -40,13 +40,13 @@ DIE=0
   }
 }
 
-if grep "^GTK_DOC_CHECK" $srcdir/$CONFIGURE; then
+(grep "^GTK_DOC_CHECK" $srcdir/$CONFIGURE >/dev/null) && {
   ($GTKDOCIZE --version) < /dev/null > /dev/null 2>&1 || {
     echo
     echo "You need gtk-doc 1.7 or newer to build $PACKAGE"
     DIE=1
   }
-fi
+}
 
 ($AUTOMAKE --version) < /dev/null > /dev/null 2>&1 || {
   echo
@@ -98,79 +98,59 @@ test $TEST_TYPE $FILE || {
 	exit 1
 }
 
-#if test -z "$*"; then
-#	echo "I am going to run ./configure with no arguments - if you wish "
-#        echo "to pass any to it, please specify them on the $0 command line."
-#fi
+if test -z "$ACLOCAL_FLAGS"; then
 
-case $CC in
-*xlc | *xlc\ * | *lcc | *lcc\ *) am_opt=--include-deps;;
-esac
+	acdir=`$ACLOCAL --print-ac-dir`
+        m4list="pkg.m4 glib-2.0.m4"
 
-for coin in .
-do 
-  dr=`dirname $coin`
-  if test -f $dr/NO-AUTO-GEN; then
-    echo skipping $dr -- flagged as no auto-gen
-  else
-    echo processing $dr
-    macrodirs= #`sed -n -e 's,AM_ACLOCAL_INCLUDE(\(.*\)),\1,gp' < $coin`
-    ( cd $dr
-      aclocalinclude="$ACLOCAL_FLAGS"
-      for k in $macrodirs; do
-  	if test -d $k; then
-          aclocalinclude="$aclocalinclude -I $k"
-  	##else 
-	##  echo "**Warning**: No such directory \`$k'.  Ignored."
-        fi
-      done
-      if grep "^AM_GLIB_GNU_GETTEXT" $CONFIGURE >/dev/null; then
-	if grep "sed.*POTFILES" $CONFIGURE >/dev/null; then
-	  : do nothing -- we still have an old unmodified configure.in
-	else
-	  echo "Creating $dr/aclocal.m4 ..."
-	  test -r $dr/aclocal.m4 || touch $dr/aclocal.m4
-	  echo "Running glib-gettextize...  Ignore non-fatal messages."
-	  echo "no" | glib-gettextize --force --copy
-	  echo "Making $dr/aclocal.m4 writable ..."
-	  test -r $dr/aclocal.m4 && chmod u+w $dr/aclocal.m4
-        fi
-      fi
-      if grep "^AC_PROG_INTLTOOL" $CONFIGURE >/dev/null ||
-         grep "^IT_PROG_INTLTOOL" $CONFIGURE >/dev/null; then
-        echo "Running intltoolize..."
-	intltoolize --copy --force --automake
-      fi
-      if grep "^AM_PROG_LIBTOOL" $CONFIGURE >/dev/null; then
-	echo "Running $LIBTOOLIZE..."
-	$LIBTOOLIZE --force --copy
-      fi
-      echo "Running $ACLOCAL $aclocalinclude ..."
-      $ACLOCAL $aclocalinclude
-      if grep "^GTK_DOC_CHECK" $CONFIGURE > /dev/null; then
-	echo "Running $GTKDOCIZE..."
-	$GTKDOCIZE
-      fi
-      if grep "^AM_CONFIG_HEADER" $CONFIGURE >/dev/null; then
-	echo "Running $AUTOHEADER..."
-	$AUTOHEADER
-      fi
-      echo "Running $AUTOMAKE --gnu $am_opt ..."
-      $AUTOMAKE --add-missing --gnu $am_opt
-      echo "Running $AUTOCONF ..."
-      $AUTOCONF
-    )
-  fi
-done
+	for file in $m4list
+	do
+		if [ ! -f "$acdir/$file" ]; then
+			echo "WARNING: aclocal's directory is $acdir, but..."
+			echo "         no file $acdir/$file"
+			echo "         You may see fatal macro warnings below."
+			echo "         If these files are installed in /some/dir, set the ACLOCAL_FLAGS "
+			echo "         environment variable to \"-I /some/dir\", or install"
+			echo "         $acdir/$file."
+			echo ""
+		fi
+	done
+fi
 
-conf_flags="--enable-maintainer-mode"
+rm -rf autom4te.cache
 
-cd "$ORIGDIR"
+echo "Running $ACLOCAL $ACLOCAL_FLAGS..."
+$ACLOCAL $ACLOCAL_FLAGS || exit $?
+
+if grep "^AC_PROG_INTLTOOL" $CONFIGURE >/dev/null ||
+    grep "^IT_PROG_INTLTOOL" $CONFIGURE >/dev/null; then
+    echo "Running intltoolize..."
+    intltoolize --copy --force --automake
+fi
+
+libtoolize --force || exit $?
+
+if grep "^GTK_DOC_CHECK" $CONFIGURE > /dev/null; then
+    echo "Running $GTKDOCIZE..."
+    $GTKDOCIZE
+fi
+
+if grep "^AM_CONFIG_HEADER" $CONFIGURE >/dev/null; then
+    echo "Running $AUTOHEADER..."
+    $AUTOHEADER || exit $?
+fi
+
+echo "Running $AUTOMAKE --add-missing..."
+$AUTOMAKE --add-missing || exit $?
+
+$AUTOCONF || exit $?
+
+cd $ORIGDIR || exit $?
 
 if test x$NOCONFIGURE = x; then
   echo Running $srcdir/configure $conf_flags "$@" ...
   $srcdir/configure $conf_flags "$@" \
-  && echo Now type \`make\' to compile $PROJECT  || exit 1
+  && echo "Now type 'make' to compile $PROJECT."  || exit 1
 else
   echo Skipping configure process.
 fi
