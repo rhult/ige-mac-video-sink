@@ -47,7 +47,10 @@ PKG_CONFIG_CHECK([ige-mac-video-embed])</programlisting>
       </example>
 
 The library has a very small API, used to setup the widget that the
-sink should diplay the video output on. An example follows:
+sink should diplay the video output on. Note that since GStreamer is
+multi-threaded and will be drawing on a GTK+ widget, it's recommended
+that the global GDK lock is used. Note the calls to g_thread_init,
+gdk_treads_enter, and gdk_threads_leave in the example below:
 
         <example>
           <title>A simple pipeline with an IGEMacVideoSink</title>
@@ -61,6 +64,10 @@ main (int argc, char *argv[])
   GstElement *audio_sink;
   GtkWidget  *window;
   GtkWidget  *area;
+
+  g_thread_init (NULL);
+  gdk_threads_init ();
+  gdk_threads_enter ();
 
   gst_init (&amp;argc, &amp;argv);
   gtk_init (&amp;argc, &amp;argv);
@@ -105,6 +112,8 @@ main (int argc, char *argv[])
 
   /* Run the main loop. */
   gtk_main ();
+
+  gdk_threads_leave ();
 
   return 0;
 }</programlisting>
