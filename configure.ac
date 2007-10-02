@@ -67,5 +67,3 @@ AC_OUTPUT([
 echo
 echo "Prefix                 : $prefix"
 echo
-echo "Type \"make install\" to install ige-mac-video-sink"
-echo
