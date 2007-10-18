@@ -51,7 +51,8 @@ expand_content_files=
 # Only needed if you are using gtkdoc-scangobj to dynamically query widget
 # signals and properties.
 INCLUDES=-I$(top_srcdir) -I$(top_builddir) $(EMBED_CFLAGS)
-GTKDOC_LIBS=$(EMBED_LIBS) $(top_builddir)/src/libigemacvideoembed.la
+GTKDOC_LIBS=$(EMBED_LIBS) 
+#$(top_builddir)/src/libigemacvideoembed.la
 
 # This includes the standard gtk-doc make rules, copied by gtkdocize.
 include $(top_srcdir)/gtk-doc.make

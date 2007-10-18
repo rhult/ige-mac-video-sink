@@ -28,14 +28,13 @@
  */
 
 #include <config.h>
-
 #import <Cocoa/Cocoa.h>
 #include <OpenGL/OpenGL.h>
 #include <OpenGL/gl.h>
 #include <OpenGL/glext.h>
+#include <gst/interfaces/xoverlay.h>
 
 #include "ige-mac-video-sink.h"
-#include "ige-mac-video-embed.h"
 
 /* Note: We are declaring this here for now, because GTK+ doesn't
  * install the header yet (planned but won't do it just yet).
@@ -408,6 +407,9 @@ mac_video_sink_set_caps (GstBaseSink *bsink,
         GST_DEBUG_OBJECT (sink, "Format: %dx%d",
                           video_width, video_height);
 
+        g_print ("call prepare\n");
+        gst_x_overlay_prepare_xwindow_id (GST_X_OVERLAY (sink));
+
         if (GST_VIDEO_SINK_WIDTH (sink) != video_width || 
             GST_VIDEO_SINK_HEIGHT (sink) != video_height) {
                 GST_VIDEO_SINK_WIDTH (sink) = video_width;
@@ -423,31 +425,6 @@ mac_video_sink_set_caps (GstBaseSink *bsink,
 
         return TRUE;
 }
-
-#if 0
-/* Leaving this out for now, but a future implementation could use the
- * bus to signal when a widget is needed:
- *
- * Sends a message to the bus to let the app provide a widget. If the
- * app doesn't, we create a toplevel window containing a drawing area
- * ourselves (mostly for demos and gst-launch testing).
- */
-static void
-mac_video_sink_prepare_widget (IgeMacVideoSink *sink)
-{
-    GstStructure *s;
-    GstMessage   *msg;
-
-    s = gst_structure_new ("prepare-widget", NULL);
-
-    GST_DEBUG_OBJECT (sink, "Sending message 'prepare-widget'");
-
-    msg = gst_message_new_element (GST_OBJECT (sink), s);
-    gst_element_post_message (GST_ELEMENT (sink), msg);
-
-    GST_LOG_OBJECT (sink, "'prepare-widget' message sent");
-}
-#endif
 
 static void
 mac_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
@@ -545,8 +522,8 @@ mac_video_sink_change_state (GstElement     *element,
         switch (transition) {
         case GST_STATE_CHANGE_NULL_TO_READY:
                 /* No widget is given to us, create our own toplevel. */
-                if (!sink->widget) {
-
+                if (0 && !sink->widget) {
+                        
                         /* We have to create the window from the main
                          * thread, add an idle callback and wait for
                          * it here to complete.
@@ -697,12 +674,14 @@ mac_video_sink_widget_destroy_cb (GtkWidget       *widget,
 }
 
 static void
-mac_video_sink_set_widget (IgeMacVideoEmbed *embed,
-                           GtkWidget        *widget)
+mac_video_sink_set_xwindow_id (GstXOverlay *overlay,
+                               gulong       id)
 {
         IgeMacVideoSink *sink;
+        GtkWidget       *widget;
 
-        sink = IGE_MAC_VIDEO_SINK (embed);
+        sink = IGE_MAC_VIDEO_SINK (overlay);
+        widget = GTK_WIDGET (id);
 
         if (sink->widget) {
                 g_signal_handlers_disconnect_by_func (
@@ -838,6 +817,11 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
         GstElementClass  *gstelement_class;
         GstBaseSinkClass *gstbasesink_class;
 
+        /* This is just here to cause a build failure if built on a
+         * platform where a pointer doesn't fit in a long.
+         */
+        const int a[sizeof(long) >= sizeof(void*) ? 1 : -1] G_GNUC_UNUSED;
+
         gobject_class = (GObjectClass *) klass;
         gstelement_class = (GstElementClass *) klass;
         gstbasesink_class = (GstBaseSinkClass *) klass;
@@ -861,10 +845,27 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
 */
 }
 
-static void
-ige_mac_video_embed_iface_init (IgeMacVideoEmbedIface *iface)
+static gboolean
+mac_video_sink_interface_supported (GstImplementsInterface *iface, 
+                                    GType                   type)
 {
-        iface->set_widget = mac_video_sink_set_widget;
+        g_assert (type == GST_TYPE_X_OVERLAY);
+        return TRUE;
+}
+
+static void
+mac_video_sink_implements_iface_init (GstImplementsInterfaceClass *klass)
+{
+        klass->supported = mac_video_sink_interface_supported;
+}
+
+static void
+mac_video_sink_xoverlay_iface_init (GstXOverlayClass *iface)
+{
+        iface->set_xwindow_id = mac_video_sink_set_xwindow_id;
+        /*iface->expose = mac_video_sink_expose;
+          iface->handle_events = mac_video_sink_set_event_handling;
+        */
 }
 
 GType
@@ -884,9 +885,13 @@ ige_mac_video_sink_get_type (void)
                         0,
                         (GInstanceInitFunc) ige_mac_video_sink_init,
                 };
-
-                const GInterfaceInfo embed_info = {
-                        (GInterfaceInitFunc) ige_mac_video_embed_iface_init,
+                const GInterfaceInfo iface_info = {
+                        (GInterfaceInitFunc) mac_video_sink_implements_iface_init,
+                        NULL,
+                        NULL,
+                };
+                const GInterfaceInfo overlay_info = {
+                        (GInterfaceInitFunc) mac_video_sink_xoverlay_iface_init,
                         NULL,
                         NULL,
                 };
@@ -894,8 +899,10 @@ ige_mac_video_sink_get_type (void)
                 sink_type = g_type_register_static (GST_TYPE_VIDEO_SINK,
                                                     "IgeMacVideoSink", &sink_info, 0);
 
-                g_type_add_interface_static (sink_type, IGE_TYPE_MAC_VIDEO_EMBED,
-                                             &embed_info);
+                g_type_add_interface_static (sink_type, GST_TYPE_IMPLEMENTS_INTERFACE,
+                                             &iface_info);
+                g_type_add_interface_static (sink_type, GST_TYPE_X_OVERLAY,
+                                             &overlay_info);
         }
 
         return sink_type;

@@ -22,7 +22,8 @@
 #include <gdk/gdkkeysyms.h>
 #include <gst/gst.h>
 
-#include "ige-mac-video-embed.h"
+#include <gst/interfaces/xoverlay.h>
+//#include "ige-mac-video-embed.h"
 
 static gboolean
 key_press_event_cb (GtkWidget   *widget, 
@@ -163,6 +164,26 @@ play_cb (GtkWidget  *button,
         }
 }
 
+static GstBusSyncReply
+bus_sync_handler_func (GstBus     *bus,
+                       GstMessage *message,
+                       GtkWidget  *widget)
+{
+	if (GST_MESSAGE_TYPE (message) != GST_MESSAGE_ELEMENT) {
+		return GST_BUS_PASS;
+        }
+ 
+	if (gst_structure_has_name (message->structure, "prepare-xwindow-id")) {
+                g_print ("test-sink handling prepare callback\n");
+		gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (GST_MESSAGE_SRC (message)),
+                                              (glong) widget);
+  		gst_message_unref (message);
+		return GST_BUS_DROP;
+	}
+	
+	return GST_BUS_PASS;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -177,6 +198,7 @@ main (int argc, char **argv)
         GtkWidget  *area;
         GdkColor    black = { 0, 0, 0, 0 };
         gchar      *uri;
+        GstBus     *bus;
 
         g_thread_init (NULL);
         gdk_threads_init ();
@@ -223,9 +245,6 @@ main (int argc, char **argv)
                           G_CALLBACK (key_press_event_cb),
                           window);
 
-        /* Set black background to make it look nice. */
-        gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
-
         widget = gtk_label_new ("<span foreground='white' size='x-large'>"
                                 "Testing IGE Mac Video Sink"
                                 "</span>");
@@ -257,11 +276,21 @@ main (int argc, char **argv)
         /* Setup the drawing area widget as the widget to display the
          * video on.
          */
-        ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
+        //ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
+
+        /* Set black background to make it look nice. */
+        gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
+        gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
         gtk_widget_show_all (window);
 
         setup_controls (window, control_hbox);
+
+	bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+	//gst_bus_add_watch (bus, (GstBusFunc)bus_watch_func, player);
+	gst_bus_set_sync_handler (bus, (GstBusSyncHandler) bus_sync_handler_func, area);
+	gst_object_unref (bus);
+
 
         /*gst_element_set_state (pipeline, GST_STATE_PLAYING);*/
 

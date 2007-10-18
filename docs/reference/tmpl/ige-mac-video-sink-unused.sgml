@@ -1,0 +1,38 @@
+<!-- ##### SECTION ./tmpl/video-embed.sgml:Long_Description ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### SECTION ./tmpl/video-embed.sgml:See_Also ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### SECTION ./tmpl/video-embed.sgml:Short_Description ##### -->
+
+
+
+<!-- ##### SECTION ./tmpl/video-embed.sgml:Stability_Level ##### -->
+
+
+
+<!-- ##### SECTION ./tmpl/video-embed.sgml:Title ##### -->
+
+
+
+<!-- ##### STRUCT IgeMacVideoEmbed ##### -->
+<para>
+
+</para>
+
+
+<!-- ##### FUNCTION ige_mac_video_embed_set_widget ##### -->
+<para>
+
+</para>
+
+@embed: 
+@widget: 
+

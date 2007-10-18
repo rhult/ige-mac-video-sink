@@ -23,34 +23,16 @@ under the GNU Library General Public License.
     </para>
 
     <para>
-The integration with GTK+ is done through an interface called <link
-linkend="ige-mac-video-sink-IGEMacVideoEmbed">IGEMacVideoEmbed</link>,
-which the sink implements. In order to use the sink, your application
-needs to link against the interface. The library uses <ulink
-url="http://pkg-config.freedesktop.org/wiki/">pkg-config</ulink> to
-get the right compiler and linker flags, and building a simple test
-might look like this:
+The integration with GTK+ is done through the same interface as is
+used on X, called GstXOverlay. The sink implements this interface, but
+with a quirk, the X window ID parameter is used to store a pointer to
+a widget where the video is displayed.
+    </para>
 
-      <example>
-        <title>Building using the pkg-config directly with the compiler</title>
-        <programlisting>
-gcc -g -O2 -Wall -o test `pkg-config --cflags --libs ige-mac-video-embed` test.c</programlisting>
-      </example>
-
-For projects using autotools (autoconf and automake), the
-corresponding configure check would be:
-
-      <example>
-        <title>Building using autotools</title>
-        <programlisting>
-PKG_CONFIG_CHECK([ige-mac-video-embed])</programlisting>
-      </example>
-
-The library has a very small API, used to setup the widget that the
-sink should diplay the video output on. Note that since GStreamer is
-multi-threaded and will be drawing on a GTK+ widget, it's recommended
-that the global GDK lock is used. Note the calls to g_thread_init,
-gdk_treads_enter, and gdk_threads_leave in the example below:
+    <para>
+Note that in order to use this sink, it's recommended that the global
+GDK lock is used. Note the calls to g_thread_init, gdk_treads_enter,
+and gdk_threads_leave in the example below:
 
         <example>
           <title>A simple pipeline with an IGEMacVideoSink</title>
@@ -100,11 +82,6 @@ main (int argc, char *argv[])
 
   gtk_container_add (GTK_CONTAINER (window), area);
 
-  /* Setup the drawing area widget as the widget to display the
-   * video on.
-   */
-  ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
-
   gtk_widget_show_all (window);
 
   /* Start the video playback. */
@@ -122,8 +99,4 @@ main (int argc, char *argv[])
 
   </chapter> 
 
-  <chapter>
-    <title>API Reference</title>
-    <xi:include href="xml/video-embed.xml"/>
-  </chapter>
 </book>

@@ -1,17 +1,3 @@
-<INCLUDE>ige-mac-video-embed.h</INCLUDE>
-
 <SECTION>
-<FILE>video-embed</FILE>
-<TITLE>IGEMacVideoEmbed</TITLE>
-IgeMacVideoEmbed
-ige_mac_video_embed_set_widget
-<SUBSECTION Standard>
-IGE_MAC_VIDEO_EMBED
-IGE_IS_MAC_VIDEO_EMBED
-IGE_TYPE_MAC_VIDEO_EMBED
-ige_mac_video_embed_get_type
-<SUBSECTION Private>
-IgeMacVideoEmbedIface
-IGE_MAC_VIDEO_EMBED_GET_IFACE
 </SECTION>
 
