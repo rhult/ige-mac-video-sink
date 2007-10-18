@@ -81,6 +81,65 @@ add_control_button (GtkWidget   *box,
 }
 
 static void
+get_overlay_position (GtkWidget *window,
+                      GtkWidget *overlay,
+                      gint      *x,
+                      gint      *y)
+{
+        gint border_width;
+        gint width, height;
+
+        border_width = gtk_container_get_border_width (GTK_CONTAINER (window));
+
+        width = window->allocation.width - 2 * border_width;
+        height = window->allocation.height - 2 * border_width;
+
+        gtk_window_get_position (GTK_WINDOW (window), x, y);
+
+        *x += border_width + (width - overlay->allocation.width) / 2;
+        *y += border_width + (height - overlay->allocation.height);
+}
+
+static void
+size_allocate_cb (GtkWidget     *window,
+                  GtkAllocation *allocation,
+                  GtkWidget     *overlay)
+{
+        gint x, y;
+
+        get_overlay_position (window, overlay, &x, &y);
+        gtk_window_move (GTK_WINDOW (overlay), x, y);
+}
+
+static void
+setup_controls (GtkWidget *window,
+                GtkWidget *control_hbox)
+{
+        GtkWidget *overlay;
+        gint       x, y;
+
+        overlay = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+        gtk_window_set_opacity (GTK_WINDOW (overlay), 0.7);
+        gtk_window_set_decorated (GTK_WINDOW (overlay), FALSE);
+
+        g_signal_connect (window,
+                          "size-allocate",
+                          G_CALLBACK (size_allocate_cb),
+                          overlay);
+
+        gtk_container_add (GTK_CONTAINER (overlay), control_hbox);
+
+        gtk_window_set_transient_for (GTK_WINDOW (overlay), GTK_WINDOW (window));
+        gtk_window_set_keep_above (GTK_WINDOW (overlay), TRUE);
+
+        gtk_widget_show_all (overlay);
+
+        get_overlay_position (window, overlay, &x, &y);
+        gtk_window_move (GTK_WINDOW (overlay), x, y);
+        gtk_window_set_accept_focus (GTK_WINDOW (overlay), FALSE);
+}
+
+static void
 stop_cb (GtkWidget  *button,
          GstElement *pipeline)
 {
@@ -151,6 +210,8 @@ main (int argc, char **argv)
         /* Setup a test window. */
         window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
         gtk_window_set_title (GTK_WINDOW (window), "IGE Mac Video");
+        gtk_window_set_default_size (GTK_WINDOW (window), 400, 300);
+
         main_vbox = gtk_vbox_new (FALSE, 6);
         gtk_container_add (GTK_CONTAINER (window), main_vbox);
         gtk_container_set_border_width (GTK_CONTAINER (window), 12);
@@ -173,6 +234,7 @@ main (int argc, char **argv)
 
         /* Create the widget to display the video on. */
         area = gtk_drawing_area_new ();
+
         gtk_box_pack_start (GTK_BOX (main_vbox), area, TRUE, TRUE, 0);
 
         /* Set the smallest acceptable size we want. */
@@ -182,7 +244,6 @@ main (int argc, char **argv)
         control_hbox = gtk_hbutton_box_new ();
         gtk_button_box_set_layout (GTK_BUTTON_BOX (control_hbox), 
                                    GTK_BUTTONBOX_CENTER);
-        gtk_box_pack_start (GTK_BOX (main_vbox), control_hbox, FALSE, FALSE, 0);
 
         add_control_button (control_hbox, GTK_STOCK_MEDIA_PREVIOUS,
                             NULL, NULL);
@@ -200,7 +261,9 @@ main (int argc, char **argv)
 
         gtk_widget_show_all (window);
 
-        gst_element_set_state (pipeline, GST_STATE_PLAYING);
+        setup_controls (window, control_hbox);
+
+        /*gst_element_set_state (pipeline, GST_STATE_PLAYING);*/
 
         gtk_main ();
 
