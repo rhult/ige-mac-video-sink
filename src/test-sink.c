@@ -23,7 +23,6 @@
 #include <gst/gst.h>
 
 #include <gst/interfaces/xoverlay.h>
-//#include "ige-mac-video-embed.h"
 
 static gboolean
 key_press_event_cb (GtkWidget   *widget, 
@@ -174,7 +173,6 @@ bus_sync_handler_func (GstBus     *bus,
         }
  
 	if (gst_structure_has_name (message->structure, "prepare-xwindow-id")) {
-                g_print ("test-sink handling prepare callback\n");
 		gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (GST_MESSAGE_SRC (message)),
                                               (glong) widget);
   		gst_message_unref (message);
@@ -190,7 +188,6 @@ main (int argc, char **argv)
         GstElement *pipeline;
         GstElement *playbin;
         GstElement *video_sink;
-        GstElement *audio_sink;
         GtkWidget  *window;
         GtkWidget  *main_vbox;
         GtkWidget  *control_hbox;
@@ -212,7 +209,6 @@ main (int argc, char **argv)
         /* Use playbin, with the Mac audio and video sinks. */ 
         playbin = gst_element_factory_make ("playbin", "playbin");
         video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
-        audio_sink = gst_element_factory_make ("osxaudiosink", "audio_sink");
 
         uri = g_strconcat ("file://",
                            g_get_home_dir (),
@@ -221,7 +217,6 @@ main (int argc, char **argv)
 
         g_object_set (playbin,
                       "video-sink", video_sink,
-                      "audio-sink", audio_sink,
                       "uri", uri,
                       NULL);
 
