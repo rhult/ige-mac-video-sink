@@ -117,13 +117,13 @@ struct _IgeMacVideoSinkClass {
         GstVideoSinkClass parent_class;
 };
 
-static void mac_video_sink_setup_context          (IgeMacVideoSink *sink);
-static void mac_video_sink_teardown_context       (IgeMacVideoSink *sink);
-static void mac_video_sink_setup_viewport         (IgeMacVideoSink *sink);
-static void mac_video_sink_size_allocate_cb       (GtkWidget       *widget,
-                                                   GtkAllocation   *allocation,
-                                                   IgeMacVideoSink *sink);
-
+static void     mac_video_sink_setup_context           (IgeMacVideoSink *sink);
+static void     mac_video_sink_teardown_context        (IgeMacVideoSink *sink);
+static void     mac_video_sink_setup_viewport          (IgeMacVideoSink *sink);
+static void     mac_video_sink_size_allocate_cb        (GtkWidget       *widget,
+                                                        GtkAllocation   *allocation,
+                                                        IgeMacVideoSink *sink);
+static gboolean mac_video_sink_create_toplevel_idle_cb (IgeMacVideoSink *sink);
 
 /* Must be called with the context being current. */
 static void
@@ -407,8 +407,27 @@ mac_video_sink_set_caps (GstBaseSink *bsink,
         GST_DEBUG_OBJECT (sink, "Format: %dx%d",
                           video_width, video_height);
 
-        g_print ("call prepare\n");
-        gst_x_overlay_prepare_xwindow_id (GST_X_OVERLAY (sink));
+        if (!sink->widget) {
+                gst_x_overlay_prepare_xwindow_id (GST_X_OVERLAY (sink));
+        }
+
+        /* No widget is given to us, create our own toplevel. */
+        if (!sink->widget) {
+                /* We have to create the window from the main
+                 * thread, add an idle callback and wait for
+                 * it here to complete.
+                 */
+                gdk_threads_add_idle (
+                        (GSourceFunc) mac_video_sink_create_toplevel_idle_cb, sink);
+
+                g_mutex_lock (sink->toplevel_mutex);
+                while (!sink->toplevel) {
+                        g_cond_wait (sink->toplevel_cond, sink->toplevel_mutex);
+                }
+                g_mutex_unlock (sink->toplevel_mutex);
+
+                mac_video_sink_setup_context (sink);
+        }
 
         if (GST_VIDEO_SINK_WIDTH (sink) != video_width || 
             GST_VIDEO_SINK_HEIGHT (sink) != video_height) {
@@ -459,7 +478,7 @@ mac_video_sink_widget_realize_cb (GtkWidget       *widget,
 }
 
 static gboolean
-create_toplevel_idle_cb (IgeMacVideoSink *sink)
+mac_video_sink_create_toplevel_idle_cb (IgeMacVideoSink *sink)
 {
         GdkColor black = { 0, 0, 0, 0 };
 
@@ -521,31 +540,13 @@ mac_video_sink_change_state (GstElement     *element,
 
         switch (transition) {
         case GST_STATE_CHANGE_NULL_TO_READY:
-                /* No widget is given to us, create our own toplevel. */
-                if (0 && !sink->widget) {
-                        
-                        /* We have to create the window from the main
-                         * thread, add an idle callback and wait for
-                         * it here to complete.
-                         */
-                        gdk_threads_add_idle ((GSourceFunc) create_toplevel_idle_cb, sink);
-
-                        g_mutex_lock (sink->toplevel_mutex);
-                        while (!sink->toplevel) {
-                                g_cond_wait (sink->toplevel_cond, sink->toplevel_mutex);
-                        }
-                        g_mutex_unlock (sink->toplevel_mutex);
-
-                        mac_video_sink_setup_context (sink);
-                } else {
-                        /* Resize if we are in control of the window. */
-                        if (sink->toplevel && sink->widget) {
-                                gdk_threads_enter ();
-                                gtk_widget_set_size_request (sink->widget,
-                                                             GST_VIDEO_SINK_WIDTH (sink),
-                                                             GST_VIDEO_SINK_HEIGHT (sink));
-                                gdk_threads_leave ();
-                        }
+                /* Resize if we are in control of the window. */
+                if (sink->toplevel && sink->widget) {
+                        gdk_threads_enter ();
+                        gtk_widget_set_size_request (sink->widget,
+                                                     GST_VIDEO_SINK_WIDTH (sink),
+                                                     GST_VIDEO_SINK_HEIGHT (sink));
+                        gdk_threads_leave ();
                 }
                 break;
 
