@@ -12,3 +12,4 @@ version.xml
 *.interfaces
 *-unused.txt
 *-undocumented.txt
+ige-mac-video-sink-scan.c

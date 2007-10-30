@@ -20,3 +20,6 @@ compile
 *.o
 *.lo
 gtk-doc.make
+.gdb_history
+*.tar.gz
+*.tar.bz2
