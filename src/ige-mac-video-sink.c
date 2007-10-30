@@ -70,8 +70,8 @@ GST_STATIC_PAD_TEMPLATE ("sink",
                                  ));
 
 enum {
-        ARG_0
-        /*ARG_FULLSCREEN*/
+        ARG_0,
+        ARG_FORCE_ASPECT_RATIO
 };
 
 #define IGE_ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
@@ -98,6 +98,7 @@ struct _IgeMacVideoSink {
 
         gboolean         needs_viewport_update;
 
+        gboolean         force_aspect_ratio;
         /*gboolean         fullscreen;*/
 
         /* Used for synchronizing the toplevel creation in the main
@@ -634,11 +635,15 @@ mac_video_sink_setup_viewport (IgeMacVideoSink *sink)
         dst.w = out_width;
         dst.h = out_height;
 
-        /* Scale the viewport while keeping the aspect ratio and
-         * centering the frame.
+        /* Scale the viewport and if necessary keep the aspect ratio
+         * and center the frame.
          */
-        gst_video_sink_center_rect (src, dst, &result, TRUE);
-        glViewport (result.x, result.y, result.w, result.h);
+        if (sink->force_aspect_ratio) {
+                gst_video_sink_center_rect (src, dst, &result, TRUE);
+                glViewport (result.x, result.y, result.w, result.h);
+        } else {
+                glViewport (0, 0, out_width, out_height);
+        }
 
         sink->needs_viewport_update = FALSE;
 }
@@ -762,10 +767,9 @@ mac_video_sink_set_property (GObject      *object,
         sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
-                /*case ARG_FULLSCREEN:
-                sink->fullscreen = g_value_get_boolean (value);
+        case ARG_FORCE_ASPECT_RATIO:
+                sink->force_aspect_ratio = g_value_get_boolean (value);
                 break;
-                */
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
                 break;
@@ -783,9 +787,9 @@ mac_video_sink_get_property (GObject    *object,
         sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
-                /*case ARG_FULLSCREEN:
-                g_value_set_boolean (value, sink->fullscreen);
-                break;*/
+        case ARG_FORCE_ASPECT_RATIO:
+                g_value_set_boolean (value, sink->force_aspect_ratio);
+                break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
                 break;
@@ -797,6 +801,8 @@ ige_mac_video_sink_init (IgeMacVideoSink *sink)
 {
         sink->toplevel_cond = g_cond_new ();
         sink->toplevel_mutex = g_mutex_new ();  
+
+        sink->force_aspect_ratio = TRUE;
 }
 
 static void
@@ -838,12 +844,11 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
         gstbasesink_class->render = mac_video_sink_show_frame;
         gstelement_class->change_state = mac_video_sink_change_state;
 
-/*        g_object_class_install_property (
-                gobject_class, ARG_FULLSCREEN,
-                g_param_spec_boolean ("fullscreen", "fullscreen",
-                                      "When enabled, the view is fullscreen", FALSE,
+        g_object_class_install_property (
+                gobject_class, ARG_FORCE_ASPECT_RATIO,
+                g_param_spec_boolean ("force-aspect-ratio", "Force Aspect Ratio",
+                                      "When enabled, the view's aspect ratio is always kept", TRUE,
                                       G_PARAM_READWRITE));
-*/
 }
 
 static gboolean
@@ -864,9 +869,11 @@ static void
 mac_video_sink_xoverlay_iface_init (GstXOverlayClass *iface)
 {
         iface->set_xwindow_id = mac_video_sink_set_xwindow_id;
-        /*iface->expose = mac_video_sink_expose;
-          iface->handle_events = mac_video_sink_set_event_handling;
-        */
+
+        /* Those are not implemented by this sink:
+         * iface->expose = mac_video_sink_expose;
+         * iface->handle_events = mac_video_sink_set_event_handling;
+         */
 }
 
 GType

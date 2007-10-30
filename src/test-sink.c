@@ -210,6 +210,10 @@ main (int argc, char **argv)
         playbin = gst_element_factory_make ("playbin", "playbin");
         video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
 
+        /* For testing aspect ratio:
+           g_object_set (video_sink, "force-aspect-ratio", FALSE, NULL);
+        */
+
         uri = g_strconcat ("file://",
                            g_get_home_dir (),
                            "/ali_512_32.mp4",
