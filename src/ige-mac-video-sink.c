@@ -92,7 +92,7 @@ struct _IgeMacVideoSink {
         GtkWidget       *toplevel;
 
         NSOpenGLContext *gl_context;
-        gulong           texture;
+        GLuint           texture;
         char            *texture_buffer;
         gboolean         init_done;
 
@@ -311,7 +311,7 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                         NSOpenGLPFAWindow,
                         0
                 };
-                long parm = 1;
+                const GLint parm = 1;
 
                 IGE_ALLOC_POOL;
 
