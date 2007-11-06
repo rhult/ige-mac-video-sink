@@ -1,4 +1,4 @@
-EXTRA_DIST = ige-mac-video-embed.pc.in
+#EXTRA_DIST = ige-mac-video-embed.pc.in
 
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = ige-mac-video-embed.pc
+#pkgconfigdir = $(libdir)/pkgconfig
+#pkgconfig_DATA = ige-mac-video-embed.pc

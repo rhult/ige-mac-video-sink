@@ -272,11 +272,6 @@ main (int argc, char **argv)
         add_control_button (control_hbox, GTK_STOCK_MEDIA_NEXT,
                             NULL, NULL);
 
-        /* Setup the drawing area widget as the widget to display the
-         * video on.
-         */
-        //ige_mac_video_embed_set_widget (IGE_MAC_VIDEO_EMBED (video_sink), area);
-
         /* Set black background to make it look nice. */
         gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);

@@ -37,11 +37,6 @@ PKG_CHECK_MODULES(SINK, [
         gstreamer-plugins-base-0.10
 ])
 
-PKG_CHECK_MODULES(EMBED, [
-        glib-2.0 >= 2.12 gobject-2.0
-	gtk+-2.0 >= 2.11
-])
-
 PKG_CHECK_MODULES(TEST, [
         glib-2.0 >= 2.12
 	gtk+-2.0 >= 2.11
@@ -58,7 +53,6 @@ AC_OUTPUT([
 	Makefile 
 	src/Makefile
 	data/Makefile
-        data/ige-mac-video-embed.pc
         docs/Makefile
         docs/reference/Makefile
         docs/reference/version.xml
