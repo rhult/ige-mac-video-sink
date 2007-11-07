@@ -15,4 +15,4 @@ libigemacvideosink_la_LDFLAGS = -module -avoid-version -framework Cocoa -framewo
 noinst_PROGRAMS = test-sink
 test_sink_SOURCES = test-sink.c
 test_sink_CFLAGS = $(TEST_CFLAGS)
-test_sink_LDADD =  $(TEST_LIBS) -lgstinterfaces-0.10
+test_sink_LDADD =  $(TEST_LIBS) -lgstvideo-0.10 -lgstinterfaces-0.10

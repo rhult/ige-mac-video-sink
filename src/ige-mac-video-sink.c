@@ -468,6 +468,11 @@ mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink)
          */
         gdk_window_set_back_pixmap (sink->widget->window, NULL, FALSE);
 
+        if (GTK_WIDGET_NO_WINDOW (sink->widget)) {
+                g_warning ("The OSX GTK+ video sink needs a widget that has its "
+                           "own window; trying anyway but there will be problems");
+        }
+
         sink->view = gdk_quartz_window_get_nsview (sink->widget->window);
 }
 
@@ -630,8 +635,13 @@ mac_video_sink_setup_viewport (IgeMacVideoSink *sink)
         out_width = sink->widget->allocation.width;
         out_height = sink->widget->allocation.height;
 
+        src.x = 0;
+        src.y = 0;
         src.w = in_width;
         src.h = in_height;
+
+        dst.x = 0;
+        dst.y = 0;
         dst.w = out_width;
         dst.h = out_height;
 

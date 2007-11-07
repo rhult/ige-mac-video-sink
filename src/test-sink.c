@@ -188,6 +188,7 @@ main (int argc, char **argv)
         GstElement *pipeline;
         GstElement *playbin;
         GstElement *video_sink;
+        GstBus     *bus;
         GtkWidget  *window;
         GtkWidget  *main_vbox;
         GtkWidget  *control_hbox;
@@ -195,7 +196,6 @@ main (int argc, char **argv)
         GtkWidget  *area;
         GdkColor    black = { 0, 0, 0, 0 };
         gchar      *uri;
-        GstBus     *bus;
 
         g_thread_init (NULL);
         gdk_threads_init ();
@@ -232,6 +232,7 @@ main (int argc, char **argv)
         window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
         gtk_window_set_title (GTK_WINDOW (window), "IGE Mac Video");
         gtk_window_set_default_size (GTK_WINDOW (window), 400, 300);
+        gtk_window_move (GTK_WINDOW (window), 100, 100);
 
         main_vbox = gtk_vbox_new (FALSE, 6);
         gtk_container_add (GTK_CONTAINER (window), main_vbox);
