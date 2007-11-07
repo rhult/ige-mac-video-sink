@@ -281,10 +281,8 @@ main (int argc, char **argv)
         setup_controls (window, control_hbox);
 
 	bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
-	//gst_bus_add_watch (bus, (GstBusFunc)bus_watch_func, player);
 	gst_bus_set_sync_handler (bus, (GstBusSyncHandler) bus_sync_handler_func, area);
 	gst_object_unref (bus);
-
 
         /*gst_element_set_state (pipeline, GST_STATE_PLAYING);*/
 
