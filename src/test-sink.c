@@ -112,8 +112,8 @@ size_allocate_cb (GtkWidget     *window,
 }
 
 static void
-setup_controls (GtkWidget *window,
-                GtkWidget *control_hbox)
+setup_control_toplevel (GtkWidget *window,
+                        GtkWidget *control_hbox)
 {
         GtkWidget *overlay;
         gint       x, y;
@@ -137,6 +137,13 @@ setup_controls (GtkWidget *window,
         get_overlay_position (window, overlay, &x, &y);
         gtk_window_move (GTK_WINDOW (overlay), x, y);
         gtk_window_set_accept_focus (GTK_WINDOW (overlay), FALSE);
+}
+
+static void
+setup_control_embedded (GtkWidget *vbox,
+                        GtkWidget *control_hbox)
+{
+        gtk_box_pack_start (GTK_BOX (vbox), control_hbox, FALSE, FALSE, 0);
 }
 
 static void
@@ -210,9 +217,10 @@ main (int argc, char **argv)
         playbin = gst_element_factory_make ("playbin", "playbin");
         video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
 
-        /* For testing aspect ratio:
-           g_object_set (video_sink, "force-aspect-ratio", FALSE, NULL);
-        */
+        /* For testing aspect ratio: */
+        if (1) {
+                g_object_set (video_sink, "force-aspect-ratio", FALSE, NULL);
+        }
 
         uri = g_strconcat ("file://",
                            g_get_home_dir (),
@@ -277,9 +285,13 @@ main (int argc, char **argv)
         gtk_widget_modify_bg (window, GTK_STATE_NORMAL, &black);
         gtk_widget_modify_bg (area, GTK_STATE_NORMAL, &black);
 
-        gtk_widget_show_all (window);
-
-        setup_controls (window, control_hbox);
+        if (0) {
+                gtk_widget_show_all (window);
+                setup_control_toplevel (window, control_hbox);
+        } else {
+                setup_control_embedded (main_vbox, control_hbox);
+                gtk_widget_show_all (window);
+        }
 
 	bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
 	gst_bus_set_sync_handler (bus, (GstBusSyncHandler) bus_sync_handler_func, area);
