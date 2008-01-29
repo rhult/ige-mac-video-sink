@@ -36,6 +36,11 @@
 
 #include "ige-mac-video-sink.h"
 
+/* Define to enable beam synced update interval, it might trigger issues
+ * like freezing the computer.
+ */
+/*#define BEAM_SYNC*/
+
 /* Note: We are declaring this here for now, because GTK+ doesn't
  * install the header yet (planned but won't do it just yet).
  */
@@ -107,6 +112,9 @@ struct _IgeMacVideoSink {
         GCond           *toplevel_cond;
         GMutex          *toplevel_mutex;
 
+        /* Used for synchronizing access to the GL context. */
+        GMutex          *gl_mutex;
+
         /* Used to decide if we should update a paused picture, so we
          * can avoid touching the GL stuff from the main thread in the
          * size allocate callback.
@@ -118,9 +126,13 @@ struct _IgeMacVideoSinkClass {
         GstVideoSinkClass parent_class;
 };
 
+/* Naming convention used is *_unlocked needs the GL mutex locked by the
+ * caller.
+ */
+
 static void     mac_video_sink_setup_context           (IgeMacVideoSink *sink);
 static void     mac_video_sink_teardown_context        (IgeMacVideoSink *sink);
-static void     mac_video_sink_setup_viewport          (IgeMacVideoSink *sink);
+static void     mac_video_sink_setup_viewport_unlocked (IgeMacVideoSink *sink);
 static void     mac_video_sink_size_allocate_cb        (GtkWidget       *widget,
                                                         GtkAllocation   *allocation,
                                                         IgeMacVideoSink *sink);
@@ -128,7 +140,7 @@ static gboolean mac_video_sink_create_toplevel_idle_cb (IgeMacVideoSink *sink);
 
 /* Must be called with the context being current. */
 static void
-mac_video_sink_init_texture (IgeMacVideoSink *sink)
+mac_video_sink_init_texture_unlocked (IgeMacVideoSink *sink)
 {
         gint width;
         gint height;
@@ -194,7 +206,7 @@ mac_video_sink_init_texture (IgeMacVideoSink *sink)
 
 /* Must be called with the context being current. */
 static void
-mac_video_sink_reload_texture (IgeMacVideoSink *sink)
+mac_video_sink_reload_texture_unlocked (IgeMacVideoSink *sink)
 {
         gint width;
         gint height;
@@ -221,10 +233,10 @@ mac_video_sink_reload_texture (IgeMacVideoSink *sink)
 
 /* Must be called with the context being current. */
 static void
-mac_video_sink_draw (IgeMacVideoSink *sink)
+mac_video_sink_draw_unlocked (IgeMacVideoSink *sink)
 {
         if (sink->needs_viewport_update) {
-                mac_video_sink_setup_viewport (sink);
+                mac_video_sink_setup_viewport_unlocked (sink);
         }
 
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -263,6 +275,7 @@ mac_video_sink_draw (IgeMacVideoSink *sink)
         }
 }
 
+/* Touches the GL context. */
 static void
 mac_video_sink_display_texture (IgeMacVideoSink *sink)
 {
@@ -281,12 +294,15 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
         gdk_threads_enter ();
 
         if ([sink->view lockFocusIfCanDraw]) {
-                [sink->gl_context setView:sink->view];
+                g_mutex_lock (sink->gl_mutex);
 
+                [sink->gl_context setView:sink->view];
                 [sink->gl_context makeCurrentContext];
 
-                mac_video_sink_draw (sink);
-                mac_video_sink_reload_texture (sink);
+                mac_video_sink_draw_unlocked (sink);
+                mac_video_sink_reload_texture_unlocked (sink);
+
+                g_mutex_unlock (sink->gl_mutex);
 
                 [sink->view unlockFocus];
         }
@@ -296,9 +312,12 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
         IGE_RELEASE_POOL;
 }
 
+/* Touches the GL context. */
 static void
 mac_video_sink_setup_context (IgeMacVideoSink *sink)
 {
+        g_mutex_lock (sink->gl_mutex);
+
         if (!sink->gl_context) {
                 NSOpenGLContext              *context;
                 NSOpenGLPixelFormat          *format;
@@ -312,7 +331,9 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                         NSOpenGLPFAWindow,
                         0
                 };
+#ifdef BEAM_SYNC
                 const GLint parm = 1;
+#endif
 
                 IGE_ALLOC_POOL;
 
@@ -335,8 +356,10 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                 [context makeCurrentContext];
                 [context update];
 
+#ifdef BEAM_SYNC
                 /* Use beam-synced updates. */
                 [context setValues:&parm forParameter:NSOpenGLCPSwapInterval];
+#endif
 
                 /* Disable anything we don't need that might slow
                  * things down.
@@ -360,11 +383,16 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
 
                 IGE_RELEASE_POOL;
         }
+
+        g_mutex_unlock (sink->gl_mutex);
 }
 
+/* Touches the GL context. */
 static void
 mac_video_sink_teardown_context (IgeMacVideoSink *sink)
 {
+        g_mutex_lock (sink->gl_mutex);
+
         if (sink->gl_context) {
                 IGE_ALLOC_POOL;
 
@@ -382,8 +410,11 @@ mac_video_sink_teardown_context (IgeMacVideoSink *sink)
 
                 IGE_RELEASE_POOL;
         }
+
+        g_mutex_unlock (sink->gl_mutex);
 }
 
+/* Touches the GL context. */
 static gboolean
 mac_video_sink_set_caps (GstBaseSink *bsink,
                          GstCaps     *caps)
@@ -435,10 +466,14 @@ mac_video_sink_set_caps (GstBaseSink *bsink,
                 GST_VIDEO_SINK_WIDTH (sink) = video_width;
                 GST_VIDEO_SINK_HEIGHT (sink) = video_height;
 
+                g_mutex_lock (sink->gl_mutex);
+
                 [sink->gl_context makeCurrentContext];
                 [sink->gl_context update];
 
-                mac_video_sink_init_texture (sink);
+                mac_video_sink_init_texture_unlocked (sink);
+
+                g_mutex_unlock (sink->gl_mutex);
 
                 sink->needs_viewport_update = TRUE;
         }
@@ -615,7 +650,7 @@ mac_video_sink_show_frame (GstBaseSink *bsink,
 
 /* Must be called with the context being current. */
 static void
-mac_video_sink_setup_viewport (IgeMacVideoSink *sink)
+mac_video_sink_setup_viewport_unlocked (IgeMacVideoSink *sink)
 {
         gint              in_width;
         gint              in_height;
@@ -658,6 +693,7 @@ mac_video_sink_setup_viewport (IgeMacVideoSink *sink)
         sink->needs_viewport_update = FALSE;
 }
 
+/* Touches the GL context. */
 static void
 mac_video_sink_size_allocate_cb (GtkWidget       *widget,
                                  GtkAllocation   *allocation,
@@ -667,15 +703,19 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
                 return;
         }
 
+        g_mutex_lock (sink->gl_mutex);
+
         [sink->gl_context makeCurrentContext];
         [sink->gl_context update];
 
-        mac_video_sink_setup_viewport (sink);
+        mac_video_sink_setup_viewport_unlocked (sink);
 
         /* Ensure we draw the latest frame when paused. */
         if (sink->texture && sink->have_still_image) {
-                mac_video_sink_draw (sink);
+                mac_video_sink_draw_unlocked (sink);
         }
+
+        g_mutex_unlock (sink->gl_mutex);
 }
 
 static void
@@ -756,10 +796,12 @@ mac_video_sink_finalize (GObject *object)
 
         sink = IGE_MAC_VIDEO_SINK (object);
 
+        mac_video_sink_teardown_context (sink);
+
         g_mutex_free (sink->toplevel_mutex);
         g_cond_free (sink->toplevel_cond);
 
-        mac_video_sink_teardown_context (sink);
+        g_mutex_free (sink->gl_mutex);
 
         if (G_OBJECT_CLASS (parent_class)->finalize) {
                 G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -810,7 +852,8 @@ static void
 ige_mac_video_sink_init (IgeMacVideoSink *sink)
 {
         sink->toplevel_cond = g_cond_new ();
-        sink->toplevel_mutex = g_mutex_new ();  
+        sink->toplevel_mutex = g_mutex_new ();
+        sink->gl_mutex = g_mutex_new ();
 
         sink->force_aspect_ratio = TRUE;
 }
