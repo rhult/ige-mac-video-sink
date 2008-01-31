@@ -1,7 +1,7 @@
 /* GTK+ Mac video sink
  *
- * Copyright (C) 2007 Pioneer Research Center USA, Inc.
- * Copyright (C) 2007 Imendio AB
+ * Copyright (C) 2007-2008 Pioneer Research Center USA, Inc.
+ * Copyright (C) 2007-2008 Imendio AB
  *
  * The code originally builds on osxvideosink by:
  * Copyright (C) 2004-6 Zaheer Abbas Merali <zaheerabbas at merali dot org>
@@ -36,29 +36,25 @@
 
 #include "ige-mac-video-sink.h"
 
-/* Define to enable beam synced update interval, it might trigger issues
- * like freezing the computer.
+/* Define to enable beam synced update interval. Not enabled by default
+ * since it seems to trigger freezes on some hardware.
  */
 /*#define BEAM_SYNC*/
 
-/* Note: We are declaring this here for now, because GTK+ doesn't
- * install the header yet (planned but won't do it just yet).
+/* Note: We are declaring this here for use with GTK+ 2.12.x. Newer versions
+ * install the header.
  */
 NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
 
-/* Debugging category */
 GST_DEBUG_CATEGORY (debug_ige_mac_video_sink);
 #define GST_CAT_DEFAULT debug_ige_mac_video_sink
 
-/* ElementFactory information */
 static const GstElementDetails ige_mac_video_sink_details =
 GST_ELEMENT_DETAILS ("GTK+ OS X Video sink",
                      "Sink/Video",
                      "GTK+ OS X videosink",
                      "Richard Hult <richard at imendio dot com>");
 
-/* Default template - initiated with class struct to allow gst-register to work
-   without X running */
 static GstStaticPadTemplate ige_mac_video_sink_sink_template_factory =
 GST_STATIC_PAD_TEMPLATE ("sink",
                          GST_PAD_SINK,
@@ -87,8 +83,9 @@ static GstVideoSinkClass *parent_class = NULL;
 struct _IgeMacVideoSink {
         GstVideoSink     videosink;
 
-        /* The GtkWidget to draw on. */
+        /* The GdkWindow to draw on. */
         GtkWidget       *widget;
+        GdkWindow       *window;
         NSView          *view;
 
         /* When no window is given us, we create our own toplevel window
@@ -104,7 +101,6 @@ struct _IgeMacVideoSink {
         gboolean         needs_viewport_update;
 
         gboolean         force_aspect_ratio;
-        /*gboolean         fullscreen;*/
 
         /* Used for synchronizing the toplevel creation in the main
          * thread when the app doesn't provide a widget to draw on.
@@ -496,26 +492,24 @@ mac_video_sink_toplevel_destroy_cb (GtkWidget       *widget,
 }
 
 static void
-mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink)
+mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink,
+                                    GdkWindow       *window)
 {
+        sink->window = window;
+
         /* Get rid of the default background flickering by before we
          * draw anything.
          */
-        gdk_window_set_back_pixmap (sink->widget->window, NULL, FALSE);
+        gdk_window_set_back_pixmap (window, NULL, FALSE);
 
-        if (GTK_WIDGET_NO_WINDOW (sink->widget)) {
-                g_warning ("The OSX GTK+ video sink needs a widget that has its "
-                           "own window; trying anyway but there will be problems");
-        }
-
-        sink->view = gdk_quartz_window_get_nsview (sink->widget->window);
+        sink->view = gdk_quartz_window_get_nsview (window);
 }
 
 static void
 mac_video_sink_widget_realize_cb (GtkWidget       *widget,
                                   IgeMacVideoSink *sink)
 {
-        mac_video_sink_widget_setup_nsview (sink);
+        mac_video_sink_widget_setup_nsview (sink, widget->window);
 }
 
 static gboolean
@@ -652,43 +646,17 @@ mac_video_sink_show_frame (GstBaseSink *bsink,
 static void
 mac_video_sink_setup_viewport_unlocked (IgeMacVideoSink *sink)
 {
-        gint              in_width;
-        gint              in_height;
-        gint              out_width;
-        gint              out_height;
-        GstVideoRectangle src;
-        GstVideoRectangle dst;
-        GstVideoRectangle result;
+        gint width;
+        gint height;
 
         if (!sink->widget) {
                 return;
         }
 
-        in_width = GST_VIDEO_SINK_WIDTH (sink);
-        in_height = GST_VIDEO_SINK_HEIGHT (sink);
+        gdk_drawable_get_size (sink->window, &width, &height);
 
-        out_width = sink->widget->allocation.width;
-        out_height = sink->widget->allocation.height;
-
-        src.x = 0;
-        src.y = 0;
-        src.w = in_width;
-        src.h = in_height;
-
-        dst.x = 0;
-        dst.y = 0;
-        dst.w = out_width;
-        dst.h = out_height;
-
-        /* Scale the viewport and if necessary keep the aspect ratio
-         * and center the frame.
-         */
-        if (sink->force_aspect_ratio) {
-                gst_video_sink_center_rect (src, dst, &result, TRUE);
-                glViewport (result.x, result.y, result.w, result.h);
-        } else {
-                glViewport (0, 0, out_width, out_height);
-        }
+        /* Scale the viewport to fill the drawable. */
+        glViewport (0, 0, width, height);
 
         sink->needs_viewport_update = FALSE;
 }
@@ -734,59 +702,60 @@ mac_video_sink_set_xwindow_id (GstXOverlay *overlay,
                                gulong       id)
 {
         IgeMacVideoSink *sink;
-        GtkWidget       *widget;
+        GdkWindow       *window;
+        gpointer         widgetptr = NULL;
 
         sink = IGE_MAC_VIDEO_SINK (overlay);
-        widget = GTK_WIDGET (id);
 
         if (sink->widget) {
                 g_signal_handlers_disconnect_by_func (
                         sink->widget,
                         G_CALLBACK (mac_video_sink_size_allocate_cb),
                         sink);
+        }
 
+        if (sink->toplevel) {
                 g_signal_handlers_disconnect_by_func (
                         sink->widget,
                         G_CALLBACK (mac_video_sink_widget_realize_cb),
                         sink);
-        }
 
-        if (sink->toplevel) {
                 gtk_widget_destroy (sink->toplevel);
                 sink->toplevel = NULL;
         }
 
+        sink->window = NULL;
         sink->widget = NULL;
         sink->view = NULL;
 
-        if (widget) {
-                sink->widget = widget;
-                mac_video_sink_setup_context (sink);
-
-                g_signal_connect (widget,
-                                  "size-allocate",
-                                  G_CALLBACK (mac_video_sink_size_allocate_cb),
-                                  sink);
-
-                sink->needs_viewport_update = TRUE;
-
-                g_signal_connect (widget,
-                                  "destroy",
-                                  G_CALLBACK (mac_video_sink_widget_destroy_cb),
-                                  sink);
-
-                g_signal_connect (widget,
-                                  "realize",
-                                  G_CALLBACK (mac_video_sink_widget_realize_cb),
-                                  sink);
-
-                /* Handle the case where the widget is already
-                 * realized too.
-                 */
-                if (GTK_WIDGET_REALIZED (sink->widget)) {
-                        mac_video_sink_widget_setup_nsview (sink);
-                }
+        window = GDK_WINDOW (id);
+        gdk_window_get_user_data (window, &widgetptr);
+        if (!GTK_IS_WIDGET (widgetptr)) {
+                g_warning ("Passed in window doesn't seems to be a valid "
+                           "GdkWindow from a GtkWidget");
+                return;
         }
+        sink->widget = widgetptr;
+
+        if (GTK_WIDGET_NO_WINDOW (sink->widget)) {
+                g_warning ("The OSX GTK+ video sink needs a widget that has its "
+                           "own window; trying anyway but there will be problems");
+        }
+
+        mac_video_sink_widget_setup_nsview (sink, window);
+        mac_video_sink_setup_context (sink);
+
+        sink->needs_viewport_update = TRUE;
+
+        g_signal_connect (sink->widget,
+                          "size-allocate",
+                          G_CALLBACK (mac_video_sink_size_allocate_cb),
+                          sink);
+
+        g_signal_connect (sink->widget,
+                          "destroy",
+                          G_CALLBACK (mac_video_sink_widget_destroy_cb),
+                          sink);
 }
 
 static void
