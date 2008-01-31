@@ -1,1 +1,4 @@
-Video sink for GStreamer for GTK+ on Mac.
+Video sink for GStreamer for GTK+ on Mac. It currently re-uses the
+same interface as the X11 sinks, but abuses the XID window id and
+passes a pointer to a GdkWindow to draw on. In the future it might
+implement a new interface instead.
