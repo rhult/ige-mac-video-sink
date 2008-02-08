@@ -519,8 +519,10 @@ mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink,
 
         sink->view = gdk_quartz_window_get_nsview (window);
 
-        /* Test */
-       [[sink->view window] setOpaque:NO];
+        /* Needed to get the window below option working. The window must be
+         * set to non-opaque.
+         */
+        [[sink->view window] setOpaque:NO];
         [[sink->view window] setAlphaValue:1.0];
 }
 
@@ -816,8 +818,10 @@ mac_video_sink_set_property (GObject      *object,
         case PROP_VIDEO_BELOW_WINDOW:
                 if (g_value_get_boolean (value)) {
                         order = -1;
+                        sink->video_below_window = TRUE;
                 } else {
                         order = 1;
+                        sink->video_below_window = FALSE;
                 }
                 g_mutex_lock (sink->gl_mutex);
                 [sink->gl_context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
