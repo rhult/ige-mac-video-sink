@@ -32,7 +32,15 @@
 #include <OpenGL/OpenGL.h>
 #include <OpenGL/gl.h>
 #include <OpenGL/glext.h>
+#include <gtk/gtk.h>
 #include <gst/interfaces/xoverlay.h>
+
+/* The quartz specific header is only available in 2.15.x and newer. */
+#if GTK_CHECK_VERSION(2,15,0)
+#include <gdk/gdkquartz.h>
+#else
+NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
+#endif
 
 #include "ige-mac-video-sink.h"
 
@@ -40,11 +48,6 @@
  * since it seems to trigger freezes on some hardware.
  */
 /*#define BEAM_SYNC*/
-
-/* Note: We are declaring this here for use with GTK+ 2.12.x. Newer versions
- * install the header.
- */
-NSView * gdk_quartz_window_get_nsview (GdkWindow *window);
 
 GST_DEBUG_CATEGORY (debug_ige_mac_video_sink);
 #define GST_CAT_DEFAULT debug_ige_mac_video_sink
@@ -71,8 +74,9 @@ GST_STATIC_PAD_TEMPLATE ("sink",
                                  ));
 
 enum {
-        ARG_0,
-        ARG_FORCE_ASPECT_RATIO
+        PROP_0,
+        PROP_VIDEO_WINDOW,
+        PROP_VIDEO_BELOW_WINDOW
 };
 
 #define IGE_ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
@@ -100,7 +104,7 @@ struct _IgeMacVideoSink {
 
         gboolean         needs_viewport_update;
 
-        gboolean         force_aspect_ratio;
+        gboolean         video_below_window;
 
         /* Used for synchronizing the toplevel creation in the main
          * thread when the app doesn't provide a widget to draw on.
@@ -111,11 +115,7 @@ struct _IgeMacVideoSink {
         /* Used for synchronizing access to the GL context. */
         GMutex          *gl_mutex;
 
-        /* Used to decide if we should update a paused picture, so we
-         * can avoid touching the GL stuff from the main thread in the
-         * size allocate callback.
-         */
-        gboolean         have_still_image;
+        NSRect           last_bounds;
 };
 
 struct _IgeMacVideoSinkClass {
@@ -129,6 +129,8 @@ struct _IgeMacVideoSinkClass {
 static void     mac_video_sink_setup_context           (IgeMacVideoSink *sink);
 static void     mac_video_sink_teardown_context        (IgeMacVideoSink *sink);
 static void     mac_video_sink_setup_viewport_unlocked (IgeMacVideoSink *sink);
+static void     mac_video_sink_set_window              (IgeMacVideoSink *sink,
+                                                        GdkWindow       *window);
 static void     mac_video_sink_size_allocate_cb        (GtkWidget       *widget,
                                                         GtkAllocation   *allocation,
                                                         IgeMacVideoSink *sink);
@@ -292,8 +294,8 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
         if ([sink->view lockFocusIfCanDraw]) {
                 g_mutex_lock (sink->gl_mutex);
 
-                [sink->gl_context setView:sink->view];
                 [sink->gl_context makeCurrentContext];
+                [sink->gl_context setView:sink->view];
 
                 mac_video_sink_draw_unlocked (sink);
                 mac_video_sink_reload_texture_unlocked (sink);
@@ -323,13 +325,14 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                         NSOpenGLPFADoubleBuffer,
                         NSOpenGLPFAColorSize, 24,
                         NSOpenGLPFAAlphaSize, 8,
-                        NSOpenGLPFADepthSize, 24,
+                        NSOpenGLPFADepthSize, 16,
                         NSOpenGLPFAWindow,
                         0
                 };
 #ifdef BEAM_SYNC
                 const GLint parm = 1;
 #endif
+                GLint       order;
 
                 IGE_ALLOC_POOL;
 
@@ -356,6 +359,13 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                 /* Use beam-synced updates. */
                 [context setValues:&parm forParameter:NSOpenGLCPSwapInterval];
 #endif
+
+                if (sink->video_below_window) {
+                        order = -1;
+                } else {
+                        order = 1;
+                }
+                [context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
 
                 /* Disable anything we don't need that might slow
                  * things down.
@@ -455,6 +465,11 @@ mac_video_sink_set_caps (GstBaseSink *bsink,
                 g_mutex_unlock (sink->toplevel_mutex);
 
                 mac_video_sink_setup_context (sink);
+
+                /* We could do this, but it doesn't make a lot of sense
+                 * since we don't have an id.
+                 */
+                /*gst_x_overlay_got_xwindow_id (GST_X_OVERLAY (sink), 0);*/
         }
 
         if (GST_VIDEO_SINK_WIDTH (sink) != video_width || 
@@ -503,6 +518,10 @@ mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink,
         gdk_window_set_back_pixmap (window, NULL, FALSE);
 
         sink->view = gdk_quartz_window_get_nsview (window);
+
+        /* Test */
+       [[sink->view window] setOpaque:NO];
+        [[sink->view window] setAlphaValue:1.0];
 }
 
 static void
@@ -562,16 +581,6 @@ mac_video_sink_change_state (GstElement     *element,
         GST_DEBUG_OBJECT (sink, "%s => %s",
                           gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
                           gst_element_state_get_name (GST_STATE_TRANSITION_NEXT (transition)));
-
-        switch (transition) {
-        case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-                sink->have_still_image = TRUE;
-                break;
-
-        default:
-                sink->have_still_image = FALSE;
-                break;
-        }
 
         switch (transition) {
         case GST_STATE_CHANGE_NULL_TO_READY:
@@ -667,7 +676,18 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
                                  GtkAllocation   *allocation,
                                  IgeMacVideoSink *sink)
 {
+        NSRect bounds;
+
         if (!sink->gl_context) {
+                return;
+        }
+
+        bounds = [sink->view bounds];
+
+        if (sink->last_bounds.origin.x == bounds.origin.x &&
+            sink->last_bounds.origin.y == bounds.origin.y &&
+            sink->last_bounds.size.width == bounds.size.width &&
+            sink->last_bounds.size.height == bounds.size.height) {
                 return;
         }
 
@@ -678,12 +698,14 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
 
         mac_video_sink_setup_viewport_unlocked (sink);
 
-        /* Ensure we draw the latest frame when paused. */
-        if (sink->texture && sink->have_still_image) {
-                mac_video_sink_draw_unlocked (sink);
+        g_mutex_unlock (sink->gl_mutex);
+
+        /* Redraw the latest frame at the new position and size. */
+        if (sink->texture) {
+                mac_video_sink_display_texture (sink);
         }
 
-        g_mutex_unlock (sink->gl_mutex);
+        sink->last_bounds = bounds;
 }
 
 static void
@@ -693,19 +715,17 @@ mac_video_sink_widget_destroy_cb (GtkWidget       *widget,
         sink->widget = NULL;
         sink->view = NULL;
         sink->init_done = FALSE;
+        sink->last_bounds.size.width = -1;
+        sink->last_bounds.size.height = -1;
 
         mac_video_sink_teardown_context (sink);
 }
 
 static void
-mac_video_sink_set_xwindow_id (GstXOverlay *overlay,
-                               gulong       id)
+mac_video_sink_set_window (IgeMacVideoSink *sink,
+                           GdkWindow       *window)
 {
-        IgeMacVideoSink *sink;
-        GdkWindow       *window;
-        gpointer         widgetptr = NULL;
-
-        sink = IGE_MAC_VIDEO_SINK (overlay);
+        gpointer widgetptr = NULL;
 
         if (sink->widget) {
                 g_signal_handlers_disconnect_by_func (
@@ -728,17 +748,16 @@ mac_video_sink_set_xwindow_id (GstXOverlay *overlay,
         sink->widget = NULL;
         sink->view = NULL;
 
-        window = GDK_WINDOW (id);
         gdk_window_get_user_data (window, &widgetptr);
         if (!GTK_IS_WIDGET (widgetptr)) {
                 g_warning ("Passed in window doesn't seems to be a valid "
-                           "GdkWindow from a GtkWidget");
+                           "GdkWindow belonging to a GtkWidget");
                 return;
         }
         sink->widget = widgetptr;
 
         if (GTK_WIDGET_NO_WINDOW (sink->widget)) {
-                g_warning ("The OSX GTK+ video sink needs a widget that has its "
+                g_warning ("The GTK+ OS X video sink needs a widget that has its "
                            "own window; trying anyway but there will be problems");
         }
 
@@ -784,12 +803,25 @@ mac_video_sink_set_property (GObject      *object,
                              GParamSpec   *pspec)
 {
         IgeMacVideoSink *sink;
+        GdkWindow       *window;
+        GLint            order;
 
         sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_FORCE_ASPECT_RATIO:
-                sink->force_aspect_ratio = g_value_get_boolean (value);
+        case PROP_VIDEO_WINDOW:
+                window = g_value_get_object (value);
+                mac_video_sink_set_window (sink, window);
+                break;
+        case PROP_VIDEO_BELOW_WINDOW:
+                if (g_value_get_boolean (value)) {
+                        order = -1;
+                } else {
+                        order = 1;
+                }
+                g_mutex_lock (sink->gl_mutex);
+                [sink->gl_context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
+                g_mutex_unlock (sink->gl_mutex);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -808,8 +840,11 @@ mac_video_sink_get_property (GObject    *object,
         sink = IGE_MAC_VIDEO_SINK (object);
 
         switch (prop_id) {
-        case ARG_FORCE_ASPECT_RATIO:
-                g_value_set_boolean (value, sink->force_aspect_ratio);
+        case PROP_VIDEO_WINDOW:
+                g_value_set_object (value, sink->window);
+                break;
+        case PROP_VIDEO_BELOW_WINDOW:
+                g_value_set_boolean (value, sink->video_below_window);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -824,7 +859,10 @@ ige_mac_video_sink_init (IgeMacVideoSink *sink)
         sink->toplevel_mutex = g_mutex_new ();
         sink->gl_mutex = g_mutex_new ();
 
-        sink->force_aspect_ratio = TRUE;
+        sink->video_below_window = FALSE;
+
+        sink->last_bounds.size.width = -1;
+        sink->last_bounds.size.height = -1;
 }
 
 static void
@@ -846,11 +884,6 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
         GstElementClass  *gstelement_class;
         GstBaseSinkClass *gstbasesink_class;
 
-        /* This is just here to cause a build failure if built on a
-         * platform where a pointer doesn't fit in a long.
-         */
-        const int a[sizeof(long) >= sizeof(void*) ? 1 : -1] G_GNUC_UNUSED;
-
         gobject_class = (GObjectClass *) klass;
         gstelement_class = (GstElementClass *) klass;
         gstbasesink_class = (GstBaseSinkClass *) klass;
@@ -867,9 +900,16 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
         gstelement_class->change_state = mac_video_sink_change_state;
 
         g_object_class_install_property (
-                gobject_class, ARG_FORCE_ASPECT_RATIO,
-                g_param_spec_boolean ("force-aspect-ratio", "Force Aspect Ratio",
-                                      "When enabled, the view's aspect ratio is always kept", TRUE,
+                gobject_class, PROP_VIDEO_WINDOW,
+                g_param_spec_object ("video-window", "Video Window",
+                                     "The GdkWindow to draw the video on kept",
+                                     GDK_TYPE_WINDOW,
+                                     G_PARAM_READWRITE));
+
+        g_object_class_install_property (
+                gobject_class, PROP_VIDEO_BELOW_WINDOW,
+                g_param_spec_boolean ("video-below-window", "Video Below window",
+                                      "Whether to keep the video display on top of the window or below it", FALSE,
                                       G_PARAM_READWRITE));
 }
 
@@ -890,9 +930,11 @@ mac_video_sink_implements_iface_init (GstImplementsInterfaceClass *klass)
 static void
 mac_video_sink_xoverlay_iface_init (GstXOverlayClass *iface)
 {
-        iface->set_xwindow_id = mac_video_sink_set_xwindow_id;
-
-        /* Those are not implemented by this sink:
+        /* Those (i.e. the entire interface) are currently not implemented
+         * by this sink. But it's easier to pretend to do it than changing
+         * apps at this stage.
+         *
+         * iface->set_xwindow_id = mac_video_sink_set_xwindow_id;
          * iface->expose = mac_video_sink_expose;
          * iface->handle_events = mac_video_sink_set_event_handling;
          */

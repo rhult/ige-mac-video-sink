@@ -19,12 +19,11 @@
  * Boston, MA 02111-1307, USA.
  */
  
-#ifndef __GTK_MAC_VIDEO_SINK_H__
-#define __GTK_MAC_VIDEO_SINK_H__
+#ifndef __IGE_MAC_VIDEO_SINK_H__
+#define __IGE_MAC_VIDEO_SINK_H__
 
 #include <gst/gst.h>
 #include <gst/video/gstvideosink.h>
-#include <gtk/gtk.h>
 
 G_BEGIN_DECLS
 

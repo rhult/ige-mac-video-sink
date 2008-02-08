@@ -180,8 +180,9 @@ bus_sync_handler_func (GstBus     *bus,
         }
  
 	if (gst_structure_has_name (message->structure, "prepare-xwindow-id")) {
-		gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (GST_MESSAGE_SRC (message)),
-                                              (glong) widget);
+                g_object_set (GST_MESSAGE_SRC (message),
+                              "video-window", widget->window,
+                              NULL);
   		gst_message_unref (message);
 		return GST_BUS_DROP;
 	}
@@ -217,14 +218,9 @@ main (int argc, char **argv)
         playbin = gst_element_factory_make ("playbin", "playbin");
         video_sink = gst_element_factory_make ("igemacvideosink", "video_sink");
 
-        /* For testing aspect ratio: */
-        if (1) {
-                g_object_set (video_sink, "force-aspect-ratio", FALSE, NULL);
-        }
-
         uri = g_strconcat ("file://",
                            g_get_home_dir (),
-                           "/ali_512_32.mp4",
+                           "/test.mp4",
                            NULL);
 
         g_object_set (playbin,
