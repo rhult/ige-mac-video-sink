@@ -520,7 +520,8 @@ mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink,
         sink->view = gdk_quartz_window_get_nsview (window);
 
         /* Needed to get the window below option working. The window must be
-         * set to non-opaque.
+         * set to non-opaque. It might be possible to only enable this when
+         * video-below-window is enabled.
          */
         [[sink->view window] setOpaque:NO];
         [[sink->view window] setAlphaValue:1.0];
@@ -906,7 +907,7 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
         g_object_class_install_property (
                 gobject_class, PROP_VIDEO_WINDOW,
                 g_param_spec_object ("video-window", "Video Window",
-                                     "The GdkWindow to draw the video on kept",
+                                     "The GdkWindow to draw the video on",
                                      GDK_TYPE_WINDOW,
                                      G_PARAM_READWRITE));
 
