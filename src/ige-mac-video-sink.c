@@ -76,7 +76,8 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 enum {
         PROP_0,
         PROP_VIDEO_WINDOW,
-        PROP_VIDEO_BELOW_WINDOW
+        PROP_VIDEO_BELOW_WINDOW,
+        PROP_HAS_FRAME
 };
 
 #define IGE_ALLOC_POOL NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init]
@@ -101,6 +102,7 @@ struct _IgeMacVideoSink {
         GLuint           texture;
         char            *texture_buffer;
         gboolean         init_done;
+        gboolean         has_frame;
 
         gboolean         needs_viewport_update;
 
@@ -127,6 +129,7 @@ struct _IgeMacVideoSinkClass {
  */
 
 static void     mac_video_sink_setup_context           (IgeMacVideoSink *sink);
+static void     mac_video_sink_delete_texture_unlocked (IgeMacVideoSink *sink);
 static void     mac_video_sink_teardown_context        (IgeMacVideoSink *sink);
 static void     mac_video_sink_setup_viewport_unlocked (IgeMacVideoSink *sink);
 static void     mac_video_sink_set_window              (IgeMacVideoSink *sink,
@@ -143,10 +146,7 @@ mac_video_sink_init_texture_unlocked (IgeMacVideoSink *sink)
         gint width;
         gint height;
 
-        if (sink->texture) {
-                glDeleteTextures (1, &sink->texture);
-                sink->texture = 0;
-        }
+        mac_video_sink_delete_texture_unlocked (sink);
 
         width = GST_VIDEO_SINK_WIDTH (sink);
         height = GST_VIDEO_SINK_HEIGHT (sink);
@@ -227,6 +227,8 @@ mac_video_sink_reload_texture_unlocked (IgeMacVideoSink *sink)
                          width, height,
                          GL_YCBCR_422_APPLE, GL_UNSIGNED_SHORT_8_8_APPLE,
                          sink->texture_buffer);
+
+        sink->has_frame = TRUE;
 }
 
 /* Must be called with the context being current. */
@@ -297,8 +299,8 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
                 [sink->gl_context makeCurrentContext];
                 [sink->gl_context setView:sink->view];
 
-                mac_video_sink_draw_unlocked (sink);
                 mac_video_sink_reload_texture_unlocked (sink);
+                mac_video_sink_draw_unlocked (sink);
 
                 g_mutex_unlock (sink->gl_mutex);
 
@@ -360,13 +362,6 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                 [context setValues:&parm forParameter:NSOpenGLCPSwapInterval];
 #endif
 
-                if (sink->video_below_window) {
-                        order = -1;
-                } else {
-                        order = 1;
-                }
-                [context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
-
                 /* Disable anything we don't need that might slow
                  * things down.
                  */
@@ -383,6 +378,13 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
                 /* Black background. */
                 glClearColor (0.0, 0.0, 0.0, 0.0);
 
+                if (sink->video_below_window) {
+                        order = -1;
+                } else {
+                        order = 1;
+                }
+                [context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
+
                 GST_LOG ("Size: %dx%d", 
                          GST_VIDEO_SINK_WIDTH (sink), 
                          GST_VIDEO_SINK_HEIGHT (sink));
@@ -391,6 +393,17 @@ mac_video_sink_setup_context (IgeMacVideoSink *sink)
         }
 
         g_mutex_unlock (sink->gl_mutex);
+}
+
+static void
+mac_video_sink_delete_texture_unlocked (IgeMacVideoSink *sink)
+{
+        if (sink->texture) {
+                glDeleteTextures (1, &sink->texture);
+                sink->texture = 0;
+        }
+
+        sink->has_frame = FALSE;
 }
 
 /* Touches the GL context. */
@@ -407,6 +420,8 @@ mac_video_sink_teardown_context (IgeMacVideoSink *sink)
                                 [sink->gl_context clearDrawable];
                         }
                 }
+
+                mac_video_sink_delete_texture_unlocked (sink);
 
                 [sink->gl_context release];
                 sink->gl_context = nil;
@@ -512,9 +527,7 @@ mac_video_sink_widget_setup_nsview (IgeMacVideoSink *sink,
 {
         sink->window = window;
 
-        /* Get rid of the default background flickering by before we
-         * draw anything.
-         */
+        /* Get rid of the default background flickering when resizing. */
         gdk_window_set_back_pixmap (window, NULL, FALSE);
 
         sink->view = gdk_quartz_window_get_nsview (window);
@@ -598,8 +611,6 @@ mac_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_PAUSED:
-                GST_VIDEO_SINK_WIDTH (sink) = 0;
-                GST_VIDEO_SINK_HEIGHT (sink) = 0;
                 break;
 
         case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -612,6 +623,14 @@ mac_video_sink_change_state (GstElement     *element,
                 break;
 
         case GST_STATE_CHANGE_READY_TO_NULL:
+                /* We unset the texture/buffer here, otherwise we show it
+                 * when starting next time, causing flickering before
+                 * showing the real first frame.
+                 */
+                g_mutex_lock (sink->gl_mutex);
+                mac_video_sink_delete_texture_unlocked (sink);
+                g_mutex_unlock (sink->gl_mutex);
+
                 if (sink->toplevel) {
                         gdk_threads_enter ();
                         gtk_widget_destroy (sink->toplevel);
@@ -624,6 +643,10 @@ mac_video_sink_change_state (GstElement     *element,
 
                         mac_video_sink_teardown_context (sink);
                 }
+
+                GST_VIDEO_SINK_WIDTH (sink) = 0;
+                GST_VIDEO_SINK_HEIGHT (sink) = 0;
+
                 break;
         }
 
@@ -807,6 +830,7 @@ mac_video_sink_set_property (GObject      *object,
 {
         IgeMacVideoSink *sink;
         GdkWindow       *window;
+        gboolean         below;
         GLint            order;
 
         sink = IGE_MAC_VIDEO_SINK (object);
@@ -817,16 +841,19 @@ mac_video_sink_set_property (GObject      *object,
                 mac_video_sink_set_window (sink, window);
                 break;
         case PROP_VIDEO_BELOW_WINDOW:
-                if (g_value_get_boolean (value)) {
-                        order = -1;
-                        sink->video_below_window = TRUE;
-                } else {
-                        order = 1;
-                        sink->video_below_window = FALSE;
+                below = g_value_get_boolean (value);
+                if (below != sink->video_below_window) {
+                        sink->video_below_window = below;
+                        if (below) {
+                                order = -1;
+                        } else {
+                                order = 1;
+                        }
+
+                        g_mutex_lock (sink->gl_mutex);
+                        [sink->gl_context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
+                        g_mutex_unlock (sink->gl_mutex);
                 }
-                g_mutex_lock (sink->gl_mutex);
-                [sink->gl_context setValues:&order forParameter: NSOpenGLCPSurfaceOrder];
-                g_mutex_unlock (sink->gl_mutex);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -850,6 +877,9 @@ mac_video_sink_get_property (GObject    *object,
                 break;
         case PROP_VIDEO_BELOW_WINDOW:
                 g_value_set_boolean (value, sink->video_below_window);
+                break;
+        case PROP_HAS_FRAME:
+                g_value_set_boolean (value, sink->has_frame);
                 break;
         default:
                 G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -916,6 +946,12 @@ ige_mac_video_sink_class_init (IgeMacVideoSinkClass * klass)
                 g_param_spec_boolean ("video-below-window", "Video Below window",
                                       "Whether to keep the video display on top of the window or below it", FALSE,
                                       G_PARAM_READWRITE));
+
+        g_object_class_install_property (
+                gobject_class, PROP_HAS_FRAME,
+                g_param_spec_boolean ("has-frame", "Has Frame",
+                                      "Whether there is a frame to show or not", FALSE,
+                                      G_PARAM_READABLE));
 }
 
 static gboolean
