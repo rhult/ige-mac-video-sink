@@ -644,9 +644,6 @@ mac_video_sink_change_state (GstElement     *element,
                         mac_video_sink_teardown_context (sink);
                 }
 
-                GST_VIDEO_SINK_WIDTH (sink) = 0;
-                GST_VIDEO_SINK_HEIGHT (sink) = 0;
-
                 break;
         }
 
