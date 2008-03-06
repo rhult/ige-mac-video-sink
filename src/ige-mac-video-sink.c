@@ -277,7 +277,8 @@ mac_video_sink_draw_unlocked (IgeMacVideoSink *sink)
 
 /* Touches the GL context. */
 static void
-mac_video_sink_display_texture (IgeMacVideoSink *sink)
+mac_video_sink_display_texture (IgeMacVideoSink *sink,
+                                gboolean         clear_background)
 {
         if (!sink->widget || !sink->view) {
                 return;
@@ -294,6 +295,11 @@ mac_video_sink_display_texture (IgeMacVideoSink *sink)
         gdk_threads_enter ();
 
         if ([sink->view lockFocusIfCanDraw]) {
+                if (clear_background) {
+                        [[NSColor clearColor] set];
+                        NSRectFill ([sink->view bounds]);
+                }
+
                 g_mutex_lock (sink->gl_mutex);
 
                 [sink->gl_context makeCurrentContext];
@@ -669,7 +675,7 @@ mac_video_sink_show_frame (GstBaseSink *bsink,
         }
 
         memcpy (sink->texture_buffer, GST_BUFFER_DATA (buf), GST_BUFFER_SIZE (buf));
-        mac_video_sink_display_texture (sink);
+        mac_video_sink_display_texture (sink, FALSE);
 
         return GST_FLOW_OK;
 }
@@ -725,7 +731,7 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
 
         /* Redraw the latest frame at the new position and size. */
         if (sink->texture) {
-                mac_video_sink_display_texture (sink);
+                mac_video_sink_display_texture (sink, TRUE);
         }
 
         sink->last_bounds = bounds;
