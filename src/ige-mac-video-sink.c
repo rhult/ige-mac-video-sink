@@ -731,7 +731,7 @@ mac_video_sink_size_allocate_cb (GtkWidget       *widget,
 
         /* Redraw the latest frame at the new position and size. */
         if (sink->texture) {
-                mac_video_sink_display_texture (sink, TRUE);
+                mac_video_sink_display_texture (sink, sink->video_below_window);
         }
 
         sink->last_bounds = bounds;
